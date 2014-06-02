@@ -23,6 +23,7 @@
     "jsonld": "~0.1.25",
     "koa-error": "~1.0.0",
     "co": "~3.0.1",
-    "koa-body-parser": "~0.2.1"
+    "koa-body-parser": "~0.2.1",
+    "graph-store-client": "xorvan/graph-store-client"
   }
 }
