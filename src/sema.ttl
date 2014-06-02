@@ -1,0 +1,42 @@
+@prefix ldp: <http://www.w3.org/ns/ldp#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sema: <http://www.xorvan.com/ns/sema#> .
+@prefix ldpt: <http://www.xorvan.com/ns/sema/ldpt#> .
+
+
+ldp:Container a owl:Class
+	; rdfs:subClassOf ldp:Resource
+.
+
+ldp:Container a owl:Class
+	; rdfs:subClassOf ldp:Resource
+.
+
+ldp:Resource rdfs:subClassOf owl:Thing .
+
+sema:Package a owl:Class
+	; rdfs:subClassOf owl:Class
+.
+
+ldpt:Container a owl:Class
+	; rdfs:subClassOf sema:Package, ldp:Container
+.
+
+ldpt:Resource a owl:Class
+	; rdfs:subClassOf sema:Package, ldp:Resource
+.
+
+sema:subResourceOf a owl:ObjectProperty .
+
+sema:hasSubResource a owl:ObjectProperty
+	; owl:inverseOf sema:subResourceOf
+	; owl:propertyChainAxiom  ( rdfs:subClassOf  sema:hasSubResource )
+.
+
+sema:softSubClassOf a owl:ObjectProperty
+	; rdfs:subPropertyOf rdfs:subClassOf
+.
+
+sema:subResourceOf a owl:ObjectProperty .
