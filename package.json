@@ -19,11 +19,12 @@
     "eventemitter2": "~0.4.13",
     "q": "~0.9.7",
     "utile": "~0.2.1",
-    "rest": "~1.0.0",
+    "rest": "^1.0.3",
     "jsonld": "~0.1.25",
     "koa-error": "~1.0.0",
     "co": "~3.0.1",
     "koa-body-parser": "~0.2.1",
+    "koa-compose": "*",
     "graph-store-client": "xorvan/graph-store-client"
   }
 }

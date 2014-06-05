@@ -28,6 +28,8 @@ var defaultEnv = {
 	, host: "localhost:4000"
 }
 
+require("rest/mime/registry").register("application/ld+json", require("rest/mime/type/application/json"));
+
 var Application = module.exports = function Application(ontology){
 	if (!(this instanceof Application)) return new Application(ontology);
 
@@ -72,6 +74,8 @@ var Application = module.exports = function Application(ontology){
 	this.framings = {};
 	this._types = {};
 	this._modules = [];
+
+	this.http = new HTTP(this);
 
 }
 
@@ -175,6 +179,7 @@ Application$.init = co(function *(rootPackageId){
 	//Installing middlewares
 	// this.use(require("koa-error")());
 	this.use(function *(next){
+		console.log("received body", this.body)
 		//User
 		this.agent = {id:"http://localhost:4001/people/Naghi_ShaNaghi"};
 		//Package Finder
@@ -266,10 +271,10 @@ Application$.init = co(function *(rootPackageId){
 				"ldp": "http://www.w3.org/ns/ldp#",
 				"ldpt": "http://www.xorvan.com/ns/sema/ldpt#",
 				"rdfs": "http://www.w3.org/2000/01/rdf-schema#",
-				"containedByRelation": {"@type": "@id", "@id": "ldp:containedByRelation"},
-				"containsRelation": {"@type": "@id", "@id": "ldp:containsRelation"},
-				"containerResource": {"@type": "@id", "@id": "ldp:containerResource"},
-				"containerResourceTemplate":  {"@id": "ldpt:containerResource"},
+				"isMemberOfRelation": {"@type": "@id", "@id": "ldp:isMemberOfRelation"},
+				"hasMemberRelation": {"@type": "@id", "@id": "ldp:hasMemberRelation"},
+				"membershipResource": {"@type": "@id", "@id": "ldp:membershipResource"},
+				"membershipResourceTemplate":  {"@id": "ldpt:membershipResource"},
 				"insertedContentRelation": {"@type": "@id", "@id": "ldp:insertedContentRelation"},
 				"subResourceRelation": {"@type": "@id"},
 				"subResourceOf": {"@type": "@id"},
@@ -278,7 +283,7 @@ Application$.init = co(function *(rootPackageId){
 			},
 
 		"@type": "Package",
-		"containerResource": {"@embed": false},
+		"membershipResource": {"@embed": false},
 		"subClassOf": {"@embed": false},
 		"expects": {"@embed": false},
 		"subResourceOf": {"@embed": false},
@@ -346,6 +351,46 @@ Application$.getPackage = function(id){
 		}
 	}
 	return r;
+}
+
+
+
+var HTTP = function(app){
+	this.app = app;
+}
+
+HTTP.prototype = {
+	request: function(req){
+		req.mime = req.mime || "application/json";
+		req.path = this.app.ns.resolve(req.path);
+		// if(!req.headers) req.headers = {};
+		//
+		// req.headers["Accept-Charset"] = req.headers["Accept-Charset"] || "utf-8";
+		// req.headers["Accept"] = req.headers["Accept"] || "application/ld+json,application/json";
+		// req.headers["Content-Type"] = req.headers["Content-Type"] || "application/json;charset=UTF-8";
+		console.log("req", req);
+		return rest
+		.chain(require("rest/interceptor/mime"), {accept: "application/ld+json,application/json", mime: req.mime})
+		.chain(require("rest/interceptor/location"))
+		.chain(require('rest/interceptor/errorCode'))
+		.chain(require('rest/interceptor/entity'))
+		(req);
+	},
+	post: function(url, data){
+		return this.request({path: url, entity: data, method: "POST"});
+	},
+	get: function(url, data){
+		return this.request({path: url, entity: data, method: "GET"});
+	},
+	put: function(url, data){
+		return this.request({path: url, entity: data, method: "PUT"});
+	},
+	patch: function(url, data){
+		return this.request({path: url, entity: data, method: "PATCH"});
+	},
+	delete: function(url, data){
+		return this.request({path: url, entity: data, method: "DELETE"});
+	}
 }
 
 methods.forEach(function(m){

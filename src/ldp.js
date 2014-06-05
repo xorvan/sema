@@ -40,24 +40,15 @@ var ldp = module.exports = function(app){
 	app.type("ldp:Resource")
 		.get(function *(next){
 			var path = decodeURI(this.path)
-			var resource = yield app.db.query("describe ?resource", {resource: path.iri()});
-			console.log("PATH IS", path, resource)
+			var resource = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
+			console.log("PATH IS", path, JSON.stringify(resource))
 			var pkg = this.rdf.Type.package;
-			if(resource.length){
-				this.body = yield new this.rdf.Type(resource, path);
-				console.log("here", this.body)
-				yield next;
-				this.body = addSubResources(pkg, path, this.body)
-				if(this.body instanceof ldp.Resource) this.body = (yield new this.rdf.Type(this.body.json, path)).json;
-			}else if(~this.rdf.type.indexOf(app.ns.resolve("ldp:Container"))){
-				yield next;
-				this.body = addSubResources(pkg, path, this.body)
-				if(this.body instanceof ldp.Resource) this.body = (yield new this.rdf.Type(this.body.json, path)).json;
-			}else{
-				this.body = yield new this.rdf.Type(path);
-				this.body = addSubResources(pkg, path, this.body)
-				this.body = yield new this.rdf.Type(this.body.json, path);
-			}
+			this.body = resource.length ? this.body = yield new this.rdf.Type(resource, path) : this.body = yield new this.rdf.Type(path);
+
+			yield next;
+
+			this.body = addSubResources(pkg, path, this.body)
+			this.body = yield new this.rdf.Type(this.body, path);
 		})
 
 		.put(function *(next){
@@ -81,10 +72,6 @@ var ldp = module.exports = function(app){
 
 	app.type("ldp:Container")
 		.get(function *(next){
-			if(!this.body){
-				this.body = yield new this.rdf.Type(this.path);
-			}
-
 			if(!this.query.page){
 				var query = this.query;
 				query.page = 1;
@@ -93,24 +80,24 @@ var ldp = module.exports = function(app){
 			}else{
 				var pageSize = 10,  page = this.query.page * 1, offset = (page - 1) * pageSize;
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
-				if(package.containerResourceTemplate){
-					package.containerResource = app.ns.resolve(url.resolve(this.path, package.containerResourceTemplate));
+				if(package.membershipResourceTemplate){
+					package.membershipResource = app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate));
 				}
 				console.log("pkg", package);
 				var qs;
-				if(package.containedByRelation){
-					qs = "select (count(?s) as ?count) { ?s ?containedByRelation ?containerResource}";
+				if(package.isMemberOfRelation){
+					qs = "select (count(?s) as ?count) { ?s ?isMemberOfRelation ?membershipResource}";
 				} else{
-					qs = "select (count(?s) as ?count) { ?containerResource ?containsRelation ?s}";
+					qs = "select (count(?s) as ?count) { ?membershipResource ?hasMemberRelation ?s}";
 				}
 
-				package.containedByRelation = package.containedByRelation || "";
-				package.containsRelation = package.containsRelation || "";
+				package.isMemberOfRelation = package.isMemberOfRelation || "";
+				package.hasMemberRelation = package.hasMemberRelation || "";
 
 				var r = yield app.db.query(qs, {
-					containerResource: package.containerResource.iri(),
-					containedByRelation: package.containedByRelation.iri(),
-					containsRelation: package.containsRelation.iri()
+					membershipResource: package.membershipResource.iri(),
+					isMemberOfRelation: package.isMemberOfRelation.iri(),
+					hasMemberRelation: package.hasMemberRelation.iri()
 				});
 
 				var count = r[0].count.value * 1;
@@ -126,26 +113,26 @@ var ldp = module.exports = function(app){
 				}
 
 				var qs;
-				if(package.containedByRelation){
-					qs = "construct {?s ?p ?o} { {select ?s { ?s ?containedByRelation ?containerResource} limit ?limit offset ?offset} ?s ?p ?o}";
+				if(package.isMemberOfRelation){
+					qs = "construct {?s ?p ?o} { {select ?s { ?s ?isMemberOfRelation ?membershipResource} limit ?limit offset ?offset} ?s ?p ?o}";
 				} else{
-					qs = "construct {?s ?p ?o} { {select ?s { ?containerResource ?containsRelation ?s} limit ?limit offset ?offset} ?s ?p ?o}";
+					qs = "construct {?s ?p ?o} { {select ?s { ?membershipResource ?hasMemberRelation ?s} limit ?limit offset ?offset} ?s ?p ?o}";
 				}
 
-				this.body["ldp:containerResource"] = package.containerResource;
-				if(package.containedByRelation){
-					this.body["ldp:containedByRelation"] = package.containedByRelation;
+				this.body["ldp:membershipResource"] = package.membershipResource;
+				if(package.isMemberOfRelation){
+					this.body["ldp:isMemberOfRelation"] = package.isMemberOfRelation;
 				}else{
-					this.body["ldp:containsRelation"] = package.containsRelation;
+					this.body["ldp:hasMemberRelation"] = package.hasMemberRelation;
 				}
 				this.body["ldp:insertedContentRelation"] = package.insertedContentRelation;
 
-				this.body.$members = yield app.db.query(qs, {
+				this.body["$members"] = yield app.db.query(qs, {
 					limit: pageSize,
 					offset: offset,
-					containerResource: package.containerResource.iri(),
-					containedByRelation: package.containedByRelation.iri(),
-					containsRelation: package.containsRelation.iri()
+					membershipResource: package.membershipResource.iri(),
+					isMemberOfRelation: package.isMemberOfRelation.iri(),
+					hasMemberRelation: package.hasMemberRelation.iri()
 				});
 
 				console.log("con body", this.body);
@@ -174,11 +161,11 @@ var ldp = module.exports = function(app){
 			console.log("p is ", p)
 			console.log("posted is ", res )
 
-			if(p.containedByRelation){
+			if(p.isMemberOfRelation){
 				//TODO: insertedContentRelation checking
-				var containerResource = p.containerResourceTemplate ? app.ns.resolve( url.resolve(this.path, p.containerResourceTemplate) ) : p.containerResource;
+				var membershipResource = p.membershipResourceTemplate ? app.ns.resolve( url.resolve(this.path, p.membershipResourceTemplate) ) : p.membershipResource;
 
-				res[p.containedByRelation] = {"@id" : containerResource};
+				res[p.isMemberOfRelation] = {"@id" : membershipResource};
 			}
 
 			res = yield new T(res);
@@ -190,16 +177,17 @@ var ldp = module.exports = function(app){
 			console.log("salam", triples, T.package)
 			console.log("db stat", yield app.db.update("INSERT DATA { ?triples }", {triples: triples}))
 			// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
-			this.set("Location", encodeURI(res["@id"]));
+			this.set("Location", app.ns.resolve(encodeURI(res["@id"])));
 			this.status = 201;
 		})
 		.frame({
 			"@context": {
 				"ldp": "http://www.w3.org/ns/ldp#",
-				"ldp:containedByRelation": {"@type": "@id"},
-				"ldp:containsRelation": {"@type": "@id"},
-				"ldp:containerResource": {"@type": "@id"},
+				"ldp:isMemberOfRelation": {"@type": "@id"},
+				"ldp:hasMemberRelation": {"@type": "@id"},
+				"ldp:membershipResource": {"@type": "@id"},
 				"ldp:insertedContentRelation": {"@type": "@id"},
+				"$members": "ldp:contains"
 			}
 		})
 
@@ -222,9 +210,9 @@ Resource$.type = function(){
 	return Q([]);
 };
 
-Resource$.__defineGetter__("json", function(){
-	return utile.clone(this);
-});
+// Resource$.__defineGetter__("json", function(){
+// 	return utile.clone(this);
+// });
 
 
 Resource$.process = co(function *(graph, id){
@@ -286,21 +274,21 @@ sys.inherits(ldp.Container, ldp.Resource);
 var Container$ = ldp.Container.prototype;
 
 Container$.bindMembers = function (graph){
-	this.$members = graph.slice ? graph.slice(1) : [];
+	// this.$members = graph.slice ? graph.slice(1) : [];
 	// this.$members = [];
-	// if(this["ldp:containedByRelation"]){
+	// if(this["ldp:isMemberOfRelation"]){
 	// 	for(var i = 0; i < graph.length; i++){
-	// 		var relation = this["ldp:containedByRelation"];
+	// 		var relation = this["ldp:isMemberOfRelation"];
 	// 		if(relation == "rdf:type") relation = "@type";
-	// 		var res = this["ldp:containerResource"];
+	// 		var res = this["ldp:membershipResource"];
 	// 		if(graph[i][relation].indexOf())
 	// 		console.log("mmm",relation, graph[i]);
 	// 	}
 	// }
 }
 
-Container$.__defineGetter__("json", function(){
-	var r = utile.clone(this);
-	delete r.$members;
-	return [r].concat(this.$members);
-});
+// Container$.__defineGetter__("json", function(){
+// 	var r = utile.clone(this);
+// 	delete r.$members;
+// 	return [r].concat(this.$members);
+// });
