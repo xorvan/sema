@@ -10,7 +10,7 @@ var jsonld = require("jsonld").promises()
 ;
 
 function flatten(framed, id){
-	console.log("flatting", id, framed);
+	// console.log("flatting", id, framed);
 	var base = framed["@context"] && framed["@context"]["@base"], r = {}, graph = framed["@graph"];
 
 	for(var i = 0; i < graph.length; i++){
@@ -21,7 +21,7 @@ function flatten(framed, id){
 		}
 	}
 	r["@context"] = framed["@context"];
-	console.log("flatted", r)
+	// console.log("flatted", r)
 	return r;
 }
 
@@ -80,6 +80,7 @@ var ldp = module.exports = function(app){
 			}else{
 				var pageSize = 10,  page = this.query.page * 1, offset = (page - 1) * pageSize;
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
+				
 				if(package.membershipResourceTemplate){
 					package.membershipResource = app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate));
 				}
@@ -93,7 +94,6 @@ var ldp = module.exports = function(app){
 
 				package.isMemberOfRelation = package.isMemberOfRelation || "";
 				package.hasMemberRelation = package.hasMemberRelation || "";
-
 				var r = yield app.db.query(qs, {
 					membershipResource: package.membershipResource.iri(),
 					isMemberOfRelation: package.isMemberOfRelation.iri(),
@@ -158,8 +158,8 @@ var ldp = module.exports = function(app){
 				}
 				res["@context"] = app.getFrame(types)["@context"];
 			}
-			console.log("p is ", p)
-			console.log("posted is ", res )
+			// console.log("p is ", p)
+			// console.log("posted is ", res )
 
 			if(p.isMemberOfRelation){
 				//TODO: insertedContentRelation checking
@@ -174,8 +174,8 @@ var ldp = module.exports = function(app){
 			yield next;
 
 			var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
-			console.log("salam", triples, T.package)
-			console.log("db stat", yield app.db.update("INSERT DATA { ?triples }", {triples: triples}))
+			// console.log("salam", triples, T.package)
+			yield app.db.update("INSERT DATA { ?triples }", {triples: triples})
 			// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
 			this.set("Location", app.ns.resolve(encodeURI(res["@id"])));
 			this.status = 201;

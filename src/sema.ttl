@@ -4,17 +4,14 @@
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix sema: <http://www.xorvan.com/ns/sema#> .
 @prefix ldpt: <http://www.xorvan.com/ns/sema/ldpt#> .
-
-
-ldp:Container a owl:Class
-	; rdfs:subClassOf ldp:Resource
-.
-
-ldp:Container a owl:Class
-	; rdfs:subClassOf ldp:Resource
-.
+@prefix h: <http://www.xorvan.com/ns/hermes#> .
+@prefix s: <http://schema.org/> .
 
 ldp:Resource rdfs:subClassOf owl:Thing .
+
+ldp:Container a owl:Class
+	; rdfs:subClassOf ldp:Resource
+.
 
 sema:Package a owl:Class
 	; rdfs:subClassOf owl:Class

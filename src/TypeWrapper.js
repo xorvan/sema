@@ -61,10 +61,10 @@ TypeWrapper$.identify = function(resource){
 	if(!basePackage.subResourceOf){
 		throw new Error(basePackage["@id"] + " is subResource of nothing!")
 	}else{
-		console.log("sssss", basePackage.subResourceOf)
+		console.log("basePackage.subResourceOf", basePackage.subResourceOf)
 		var np, p = this.app.type(basePackage.subResourceOf).package;
 		while(p && p["@id"] != this.app.rootPackage["@id"]){
-			console.log("idddddd11", id, p)
+			// console.log("idddddd11", id, p)
 			p = this.app.type(getBaseType(this.app, p )["@id"]).package;
 
 			//TODO: check container template container resource template with occured {slug}

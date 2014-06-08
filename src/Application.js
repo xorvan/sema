@@ -179,9 +179,27 @@ Application$.init = co(function *(rootPackageId){
 	//Installing middlewares
 	// this.use(require("koa-error")());
 	this.use(function *(next){
-		console.log("received body", this.body)
+		// console.log("received body", this.body)
 		//User
-		this.agent = {id:"http://localhost:4001/people/Naghi_ShaNaghi"};
+		// console.log("HEADERRRRR ", this.header);
+		if(this.header.authorization){
+			var auth = this.header.authorization.split(' ');
+			if(auth.length > 1 && auth[0] == "Bearer"){
+				var token = auth[1];
+				var agent = yield this.app.db.query("select ?agent {?tk a h:Token; h:hashValue ?hash. ?tk h:hasAgent ?agent}",{hash:'"'+token+'"'})
+				if(agent.length){
+					var agentid = agent[0].agent.value
+					// var agg = yield this.app.http.get(agentid);
+					var agg = yield this.app.db.query("describe ?agent",{agent:'<'+agentid+'>'})
+					
+					var agg2 = yield new this.app.rdf.Type(agg, agentid)
+					this.agent = agg2;
+					this.agent.id = agentid
+					console.log("########## this,.agent ", this.agent)
+				}
+			}
+		}
+		// this.agent = {id:"http://localhost:4001/people/Naghi_ShaNaghi"};
 		//Package Finder
 		for(var i = 0; i < self.typeMaps.length; i++){
 			var pkg = this.app.typeMaps[i];
