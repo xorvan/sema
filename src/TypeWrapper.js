@@ -48,7 +48,7 @@ TypeWrapper$.slugger = function(resource){
 }
 
 TypeWrapper$.identify = function(resource){
-	console.log("identify", resource, this.id)
+	// console.log("identify", resource, this.id)
 	var basePackage = this.basePackage;
 	if(!basePackage){
 		throw new Error("No Base Package found for " + this.id+"! identifying "+ JSON.stringify(resource));
@@ -57,11 +57,11 @@ TypeWrapper$.identify = function(resource){
 		id = basePackage.pathTemplate == "{slug}" ? T.slug(resource) : basePackage.pathTemplate;
 
 
-	console.log("basepkg", T.slugger, id)
+	// console.log("basepkg", T.slugger, id)
 	if(!basePackage.subResourceOf){
 		throw new Error(basePackage["@id"] + " is subResource of nothing!")
 	}else{
-		console.log("basePackage.subResourceOf", basePackage.subResourceOf)
+		// console.log("basePackage.subResourceOf", basePackage.subResourceOf)
 		var np, p = this.app.type(basePackage.subResourceOf).package;
 		while(p && p["@id"] != this.app.rootPackage["@id"]){
 			// console.log("idddddd11", id, p)
@@ -75,7 +75,7 @@ TypeWrapper$.identify = function(resource){
 
 			if(p.pathTemplate == "{slug}"){
 				if(np){
-					console.log("slug is reached", id, resource, np.containedByRelation)
+					// console.log("slug is reached", id, resource, np.containedByRelation)
 					if(!resource[np.containedByRelation]){
 						throw new Error("containedByRelation, " + np.containedByRelation + " ,not found to identify " + JSON.stringify(resource))
 					}
@@ -89,7 +89,7 @@ TypeWrapper$.identify = function(resource){
 				p = this.app.type(p.subResourceOf).package;
 			}
 		}
-		console.log("idddddd", id)
+		// console.log("idddddd", id)
 		return "/" + id;
 	}
 }
@@ -116,7 +116,7 @@ function getBaseType(app, pkg){
 		return pkg;
 
 	for(var i = 1; i <= packages.length; i++){
-		console.log("ppppp", packages[i])
+		// console.log("ppppp", packages[i])
 		var pkg = app.getPackage(packages[i]);
 		if(pkg.pathTemplate) return pkg;
 	}

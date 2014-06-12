@@ -14,7 +14,7 @@ function flatten(framed, id){
 	var base = framed["@context"] && framed["@context"]["@base"], r = {}, graph = framed["@graph"];
 
 	for(var i = 0; i < graph.length; i++){
-		console.log(id, (base ? url.resolve(base, graph[i]["@id"]) : graph[i]["@id"] ))
+		// console.log(id, (base ? url.resolve(base, graph[i]["@id"]) : graph[i]["@id"] ))
 		if(id == (base ? url.resolve(base, graph[i]["@id"]) : graph[i]["@id"] )){
 			r = graph[i];
 			break;
@@ -41,7 +41,7 @@ var ldp = module.exports = function(app){
 		.get(function *(next){
 			var path = decodeURI(this.path)
 			var resource = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
-			console.log("PATH IS", path, JSON.stringify(resource))
+			// console.log("PATH IS", path, JSON.stringify(resource))
 			var pkg = this.rdf.Type.package;
 			this.body = resource.length ? this.body = yield new this.rdf.Type(resource, path) : this.body = yield new this.rdf.Type(path);
 
@@ -55,6 +55,7 @@ var ldp = module.exports = function(app){
 			var res = yield* this.request.json();
 			res["@id"] = app.ns.resolve(this.url);
 			this.request.body = yield new this.rdf.Type(res, this.url)
+			console.log("i have got a putttttt to ldp:resource   ", this.request.body)
 
 			yield next;
 
@@ -84,7 +85,7 @@ var ldp = module.exports = function(app){
 				if(package.membershipResourceTemplate){
 					package.membershipResource = app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate));
 				}
-				console.log("pkg", package);
+				// console.log("pkg", package);
 				var qs;
 				if(package.isMemberOfRelation){
 					qs = "select (count(?s) as ?count) { ?s ?isMemberOfRelation ?membershipResource}";
@@ -135,7 +136,7 @@ var ldp = module.exports = function(app){
 					hasMemberRelation: package.hasMemberRelation.iri()
 				});
 
-				console.log("con body", this.body);
+				// console.log("con body", this.body);
 
 				yield next;
 
@@ -239,7 +240,7 @@ Resource$.process = co(function *(graph, id){
 		}
 		if(!types){
 			console.log("Warning: Invalid ID! Could not find " + id + " in " + JSON.stringify(graph))
-			console.log("conss", arguments.callee)
+			// console.log("conss", arguments.callee)
 
 			var deferred = Q.defer();
 			co(arguments.callee).call(this, id, null, deferred.makeNodeResolver() );
@@ -262,7 +263,7 @@ Resource$.process = co(function *(graph, id){
 		resource.__proto__.__proto__ = Container$;
 		resource.bindMembers(graph);
 	}
-	console.log("restouce is ", resource)
+	// console.log("restouce is ", resource)
 	return resource;
 })
 

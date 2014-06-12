@@ -103,7 +103,7 @@ Application$.use = function(mw){
 				dt = this.type(tid);
 
 			if(t.hasSlugger){
-				console.log("importing slugger", tid)
+				// console.log("importing slugger", tid)
 				dt.slug(t.slugger);
 			}
 
@@ -113,7 +113,7 @@ Application$.use = function(mw){
 		}
 
 
-		console.log("ROUTES", JSON.stringify(this.routes.get), JSON.stringify(mw.routes.get))
+		// console.log("ROUTES", JSON.stringify(this.routes.get), JSON.stringify(mw.routes.get))
 	}else{
 		return koa.prototype.use.call(this, mw);
 	}
@@ -121,7 +121,7 @@ Application$.use = function(mw){
 
 Application$.type = function(id){
 	var id = this.ns.resolve(id), self = this;
-	console.log("resolving",id)
+	// console.log("resolving",id)
 	if(this._types[id]){
 		return this._types[id];
 	}else{
@@ -182,20 +182,21 @@ Application$.init = co(function *(rootPackageId){
 		// console.log("received body", this.body)
 		//User
 		// console.log("HEADERRRRR ", this.header);
-		if(this.header.authorization){
+		if(this.header["x-sema-secret"] && this.header["x-sema-secret"] == systemSecret){
+			this.agent = {id:"sema-system"};
+		}else if(this.header.authorization){
 			var auth = this.header.authorization.split(' ');
 			if(auth.length > 1 && auth[0] == "Bearer"){
 				var token = auth[1];
 				var agent = yield this.app.db.query("select ?agent {?tk a h:Token; h:hashValue ?hash. ?tk h:hasAgent ?agent}",{hash:'"'+token+'"'})
 				if(agent.length){
 					var agentid = agent[0].agent.value
-					// var agg = yield this.app.http.get(agentid);
-					var agg = yield this.app.db.query("describe ?agent",{agent:'<'+agentid+'>'})
+					var agg = yield this.app.http.get(agentid);
+					// var agg = yield this.app.db.query("describe ?agent",{agent:'<'+agentid+'>'})
 					
-					var agg2 = yield new this.app.rdf.Type(agg, agentid)
-					this.agent = agg2;
+					this.agent = agg;
 					this.agent.id = agentid
-					console.log("########## this,.agent ", this.agent)
+					console.log("########## this agent ", this.agent)
 				}
 			}
 		}
@@ -207,7 +208,7 @@ Application$.init = co(function *(rootPackageId){
 				this.rdf = {};
 				this.rdf.Type = self.type(pkg.type);
 				this.rdf.type = yield this.rdf.Type.type();
-				console.log("rdf types", this.rdf.type);
+				// console.log("rdf types", this.rdf.type);
 				break;
 			}
 		}
@@ -223,7 +224,7 @@ Application$.init = co(function *(rootPackageId){
 			var t;
 			if(t = routes[types[i]]) mw = mw.concat(t);
 		}
-		console.log("routes ", mw);
+		// console.log("routes ", mw);
 		if(mw.length){
 			yield compose(mw.concat(function *(){yield next}));
 		}else{
@@ -246,7 +247,7 @@ Application$.init = co(function *(rootPackageId){
 				var m = this._modules[i];
 				if(m.ontology){
 					ontology += yield n3.parse(m.ontology, "text/plain");
-					console.log("Module " + (i+1) + " ontology loaded!", res);
+					// console.log("Module " + (i+1) + " ontology loaded!", res);
 				}
 			}
 
@@ -272,7 +273,7 @@ Application$.init = co(function *(rootPackageId){
 			}
 
 		}catch(e){
-			console.log("Error loading ontology!", e);
+			// console.log("Error loading ontology!", e);
 		}
 	}
 
@@ -309,14 +310,14 @@ Application$.init = co(function *(rootPackageId){
 		"hasSubResource": {"@type": "Package", "@embed": true}
 		}
 	);
-console.log(ddd, packages)
+// console.log(ddd, packages)
 	var rootPackage = this.rootPackage = this.getPackage(rootPackageId);
 
 	if(!rootPackage){
 		throw new Error("Root Package Not Found! " + rootPackageId);
 	}
 
-	console.log("root package", rootPackage);
+	// console.log("root package", rootPackage);
 
 	var self = this;
 
@@ -356,7 +357,7 @@ console.log(ddd, packages)
 	}
 
 	addTypeMaps(rootPackage);
-	console.log(this.typeMaps);
+	// console.log(this.typeMaps);
 
 });
 
@@ -376,17 +377,18 @@ Application$.getPackage = function(id){
 var HTTP = function(app){
 	this.app = app;
 }
-
+var systemSecret = "this is top secret string that should be kept hidden"
 HTTP.prototype = {
 	request: function(req){
 		req.mime = req.mime || "application/json";
 		req.path = this.app.ns.resolve(req.path);
-		// if(!req.headers) req.headers = {};
+		if(!req.headers) req.headers = {};
 		//
 		// req.headers["Accept-Charset"] = req.headers["Accept-Charset"] || "utf-8";
 		// req.headers["Accept"] = req.headers["Accept"] || "application/ld+json,application/json";
 		// req.headers["Content-Type"] = req.headers["Content-Type"] || "application/json;charset=UTF-8";
-		console.log("req", req);
+		req.headers["x-sema-secret"] = systemSecret;
+		// console.log("req", req);
 		return rest
 		.chain(require("rest/interceptor/mime"), {accept: "application/ld+json,application/json", mime: req.mime})
 		.chain(require("rest/interceptor/location"))
