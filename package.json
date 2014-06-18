@@ -25,6 +25,7 @@
     "co": "~3.0.1",
     "koa-body-parser": "~0.2.1",
     "koa-compose": "*",
-    "graph-store-client": "xorvan/graph-store-client"
+    "graph-store-client": "xorvan/graph-store-client",
+    "node-uuid": "^1.4.1"
   }
 }

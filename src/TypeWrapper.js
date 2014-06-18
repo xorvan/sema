@@ -2,6 +2,7 @@ var utile = require("utile")
 	, methods = require("./methods")
 	, Q = require("q")
 	, co = require("co")
+	, uuid = require("node-uuid")
 	, joinPath = require("./joinPath.js")
 ;
 
@@ -44,7 +45,7 @@ TypeWrapper$.slug = function(slugger){
 }
 
 TypeWrapper$.slugger = function(resource){
-	return "new";
+	return uuid.v4();
 }
 
 TypeWrapper$.identify = function(resource){
@@ -76,10 +77,10 @@ TypeWrapper$.identify = function(resource){
 			if(p.pathTemplate == "{slug}"){
 				if(np){
 					// console.log("slug is reached", id, resource, np.containedByRelation)
-					if(!resource[np.containedByRelation]){
-						throw new Error("containedByRelation, " + np.containedByRelation + " ,not found to identify " + JSON.stringify(resource))
+					if(!resource[np.isMemberOfRelation]){
+						throw new Error("isMemberOfRelation, " + np.isMemberOfRelation + " ,not found to identify " + JSON.stringify(resource))
 					}
-					id = joinPath(resource[np.containedByRelation]["@id"], id)
+					id = joinPath(resource[np.isMemberOfRelation]["@id"], id)
 					p = false;
 				}else{
 					throw new Error("No Container Template found to identify " + JSON.stringify(p))

@@ -30,6 +30,18 @@ var defaultEnv = {
 
 require("rest/mime/registry").register("application/ld+json", require("rest/mime/type/application/json"));
 
+var locationInterceptor = require("rest/interceptor")({
+	success: function (response, config, client) {
+		if (response.headers && response.headers.Location) {
+			return (config.client || (response.request && response.request.originator) || client.skip())({
+				method: 'GET',
+				path: url.resolve(response.request.path, response.headers.Location)
+			});
+		}
+		return response;
+	}
+});
+
 var Application = module.exports = function Application(ontology){
 	if (!(this instanceof Application)) return new Application(ontology);
 
@@ -76,6 +88,26 @@ var Application = module.exports = function Application(ontology){
 	this._modules = [];
 
 	this.http = new HTTP(this);
+
+
+	//authorization middleware
+	this.use(function *(next){
+		if(this.header["x-sema-secret"] && this.header["x-sema-secret"] == systemSecret){
+			this.agent = {id:"sema-system"};
+		}else if(this.header.authorization){
+			var auth = this.header.authorization.split(' ');
+			if(auth.length > 1 && auth[0] == "Bearer"){
+				var token = auth[1];
+				var agent = yield this.app.db.query("select ?agent {?tk a h:Token; rdf:value ?hash. ?tk h:issuedFor ?agent}", {hash: token.lit()})
+				if(agent.length){
+					this.agent = agent[0].agent.value;
+					console.log("########## this agent ", this.agent)
+				}
+			}
+		}
+
+		yield next;
+	});
 
 }
 
@@ -182,24 +214,7 @@ Application$.init = co(function *(rootPackageId){
 		// console.log("received body", this.body)
 		//User
 		// console.log("HEADERRRRR ", this.header);
-		if(this.header["x-sema-secret"] && this.header["x-sema-secret"] == systemSecret){
-			this.agent = {id:"sema-system"};
-		}else if(this.header.authorization){
-			var auth = this.header.authorization.split(' ');
-			if(auth.length > 1 && auth[0] == "Bearer"){
-				var token = auth[1];
-				var agent = yield this.app.db.query("select ?agent {?tk a h:Token; h:hashValue ?hash. ?tk h:hasAgent ?agent}",{hash:'"'+token+'"'})
-				if(agent.length){
-					var agentid = agent[0].agent.value
-					var agg = yield this.app.http.get(agentid);
-					// var agg = yield this.app.db.query("describe ?agent",{agent:'<'+agentid+'>'})
-					
-					this.agent = agg;
-					this.agent.id = agentid
-					console.log("########## this agent ", this.agent)
-				}
-			}
-		}
+
 		// this.agent = {id:"http://localhost:4001/people/Naghi_ShaNaghi"};
 		//Package Finder
 		for(var i = 0; i < self.typeMaps.length; i++){
@@ -251,7 +266,7 @@ Application$.init = co(function *(rootPackageId){
 				}
 			}
 
-			// console.log("Ontology is \n", ontology);
+			console.log("Ontology is \n", ontology);
 
 			if(fs.existsSync(".loadedOntology.ttl")){
 				var prevOntology = fs.readFileSync(".loadedOntology.ttl");
@@ -273,7 +288,7 @@ Application$.init = co(function *(rootPackageId){
 			}
 
 		}catch(e){
-			// console.log("Error loading ontology!", e);
+			throw new Error("Error loading ontology! " + e);
 		}
 	}
 
@@ -282,7 +297,7 @@ Application$.init = co(function *(rootPackageId){
 	ldp(this);
 
 	var packages = this.packages = yield jsonld.frame(
-		ddd = yield this.db.query("describe ?s {?s a sema:Package}")
+		ddd = yield this.db.query("describe ?s {?s a sema:Package . hint:Query hint:describeMode \"CBD\"}")
 		,{
 			"@context":
 			{
@@ -388,16 +403,23 @@ HTTP.prototype = {
 		// req.headers["Accept"] = req.headers["Accept"] || "application/ld+json,application/json";
 		// req.headers["Content-Type"] = req.headers["Content-Type"] || "application/json;charset=UTF-8";
 		req.headers["x-sema-secret"] = systemSecret;
-		// console.log("req", req);
+		console.log("req", req);
 		return rest
-		.chain(require("rest/interceptor/mime"), {accept: "application/ld+json,application/json", mime: req.mime})
-		.chain(require("rest/interceptor/location"))
-		.chain(require('rest/interceptor/errorCode'))
-		.chain(require('rest/interceptor/entity'))
+		.wrap(require("rest/interceptor/mime"), {accept: "application/ld+json,application/json", mime: req.mime})
+		.wrap(locationInterceptor)
+		.wrap(require('rest/interceptor/errorCode'))
+		.wrap(require('rest/interceptor/entity'))
 		(req);
 	},
 	post: function(url, data){
-		return this.request({path: url, entity: data, method: "POST"});
+			console.log("posting....")
+		try{
+			var r = this.request({path: url, entity: data, method: "POST"});
+			console.log("req is ", r)
+			return r
+		}catch(e){
+			console.log("post error", e)
+		}
 	},
 	get: function(url, data){
 		return this.request({path: url, entity: data, method: "GET"});

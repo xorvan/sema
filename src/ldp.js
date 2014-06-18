@@ -81,7 +81,7 @@ var ldp = module.exports = function(app){
 			}else{
 				var pageSize = 10,  page = this.query.page * 1, offset = (page - 1) * pageSize;
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
-				
+
 				if(package.membershipResourceTemplate){
 					package.membershipResource = app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate));
 				}
@@ -147,7 +147,7 @@ var ldp = module.exports = function(app){
 				, p = this.rdf.Type.package
 				, T = app.type(p.expectedType || app.ns.resolve("owl:Thing"))
 			;
-
+			console.log("new resource posted", res)
 			res["@id"] = app.ns.resolve("new");
 			if(this.is('application/json')){
 				var types = yield T.type();
@@ -170,16 +170,19 @@ var ldp = module.exports = function(app){
 			}
 
 			res = yield new T(res);
-			res["@id"] = T.identify(res);
 			this.request.body = res;
+			
 			yield next;
 
+			res["@id"] = T.identify(res);
 			var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
 			// console.log("salam", triples, T.package)
 			yield app.db.update("INSERT DATA { ?triples }", {triples: triples})
 			// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
-			this.set("Location", app.ns.resolve(encodeURI(res["@id"])));
+			this.set("Location", encodeURI(res["@id"]));
 			this.status = 201;
+
+			console.log("end of new resource posted", res)
 		})
 		.frame({
 			"@context": {
