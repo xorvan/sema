@@ -168,13 +168,14 @@ var ldp = module.exports = function(app){
 
 				res[p.isMemberOfRelation] = {"@id" : membershipResource};
 			}
-
+			console.log("parsing resource", res)
 			res = yield new T(res);
 			this.request.body = res;
 			
 			yield next;
-
+console.log("before id");
 			res["@id"] = T.identify(res);
+console.log("after id", res)
 			var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
 			// console.log("salam", triples, T.package)
 			yield app.db.update("INSERT DATA { ?triples }", {triples: triples})
