@@ -7,6 +7,9 @@ var jsonld = require("jsonld").promises()
 	, path = require("path")
 	, url = require("url")
 	, joinPath = require("./joinPath.js")
+	, getRawBody = require('raw-body')
+	, fs = require('co-fs')
+	, send = require('koa-send');
 ;
 
 function flatten(framed, id){
@@ -47,8 +50,11 @@ var ldp = module.exports = function(app){
 
 			yield next;
 
-			this.body = addSubResources(pkg, path, this.body)
-			this.body = yield new this.rdf.Type(this.body, path);
+			//TODO: implementing ldp:RDFSource
+			if(!this.body._readableState){
+				this.body = addSubResources(pkg, path, this.body)
+				this.body = yield new this.rdf.Type(this.body, path);
+			}
 		})
 
 		.put(function *(next){
@@ -68,6 +74,12 @@ var ldp = module.exports = function(app){
 			"@context": {
 				"ldp": "http://www.w3.org/ns/ldp#"
 			}
+		})
+	;
+
+	app.type("ldp:NonRDFSource")
+		.get(function *(next){
+			yield send(this, this.path, { root: app.env.nonRDFSourceRoot } );
 		})
 	;
 
@@ -143,47 +155,69 @@ var ldp = module.exports = function(app){
 			}
 		})
 		.post(function *(next){
-			var res = yield* this.request.json()
+			var res = this.request.body
 				, p = this.rdf.Type.package
 				, T = app.type(p.expectedType || app.ns.resolve("owl:Thing"))
+				, types = yield T.type();
 			;
-			console.log("new resource posted", res)
-			res["@id"] = app.ns.resolve("new");
-			if(this.is('application/json')){
-				var types = yield T.type();
-				if(!res["@type"]){
-					res["@type"] = types;
-				}else{
-					var ct = res["@type"] instanceof Array ? res["@type"] : [res["@type"]]
-					res["@type"] = ct.concat(types);
+
+			console.log("expected type", types);
+			if(~types.indexOf("http://www.w3.org/ns/ldp#NonRDFSource")){
+				res = yield new T("new");
+				res.value = yield getRawBody(this.req, {
+			    length: this.length,
+			    limit: '1mb',
+			    encoding: this.charset
+			  });
+
+				var location = T.identify(res, this.header.slug);
+				var p = path.join(app.env.nonRDFSourceRoot, location);
+				console.log("binary", p, res)
+
+				yield fs.writeFile(p, res.value);
+
+				this.set("Location", location);
+				this.status = 201;
+
+			}else{
+				console.log("new resource posted", res)
+				res["@id"] = app.ns.resolve("new");
+				if(this.is('application/json')){
+					if(!res["@type"]){
+						res["@type"] = types;
+					}else{
+						var ct = res["@type"] instanceof Array ? res["@type"] : [res["@type"]]
+						res["@type"] = ct.concat(types);
+					}
+					res["@context"] = app.getFrame(types)["@context"];
+					res["@context"]["@base"] = app.ns.resolve(this.path)
 				}
-				res["@context"] = app.getFrame(types)["@context"];
+				// console.log("p is ", p)
+				// console.log("posted is ", res )
+
+				if(p.isMemberOfRelation){
+					//TODO: insertedContentRelation checking
+					var membershipResource = p.membershipResourceTemplate ? app.ns.resolve( url.resolve(this.path, p.membershipResourceTemplate) ) : p.membershipResource;
+
+					res[p.isMemberOfRelation] = {"@id" : membershipResource};
+				}
+				console.log("parsing resource", res)
+				res = yield new T(res);
+				this.request.body = res;
+
+				yield next;
+
+				res["@id"] = T.identify(res);
+
+				var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
+				// console.log("salam", triples, T.package)
+				yield app.db.update("INSERT DATA { ?triples }", {triples: triples})
+				// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
+				this.set("Location", encodeURI(res["@id"]));
+				this.status = 201;
+
+				console.log("end of new resource posted", res)
 			}
-			// console.log("p is ", p)
-			// console.log("posted is ", res )
-
-			if(p.isMemberOfRelation){
-				//TODO: insertedContentRelation checking
-				var membershipResource = p.membershipResourceTemplate ? app.ns.resolve( url.resolve(this.path, p.membershipResourceTemplate) ) : p.membershipResource;
-
-				res[p.isMemberOfRelation] = {"@id" : membershipResource};
-			}
-			console.log("parsing resource", res)
-			res = yield new T(res);
-			this.request.body = res;
-			
-			yield next;
-console.log("before id");
-			res["@id"] = T.identify(res);
-console.log("after id", res)
-			var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
-			// console.log("salam", triples, T.package)
-			yield app.db.update("INSERT DATA { ?triples }", {triples: triples})
-			// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
-			this.set("Location", encodeURI(res["@id"]));
-			this.status = 201;
-
-			console.log("end of new resource posted", res)
 		})
 		.frame({
 			"@context": {

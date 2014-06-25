@@ -89,6 +89,9 @@ var Application = module.exports = function Application(ontology){
 
 	this.http = new HTTP(this);
 
+	//Installing Body Parser
+	this.use(bodyParser());
+
 
 	//authorization middleware
 	this.use(function *(next){
@@ -143,6 +146,8 @@ Application$.use = function(mw){
 				dt.frame(t.frame())
 			}
 		}
+
+		mw.env = this.env;
 
 
 		// console.log("ROUTES", JSON.stringify(this.routes.get), JSON.stringify(mw.routes.get))
@@ -205,8 +210,6 @@ Application$.getFrame = function(types){
 
 Application$.init = co(function *(rootPackageId){
 
-	//Installing Body Parser
-	bodyParser(this);
 
 	//Installing middlewares
 	// this.use(require("koa-error")());
@@ -227,6 +230,7 @@ Application$.init = co(function *(rootPackageId){
 				break;
 			}
 		}
+		console.log("rdf types", this.typeMaps)
 		yield next;
 	})
 	this.use(function *(next){
@@ -332,7 +336,7 @@ Application$.init = co(function *(rootPackageId){
 		throw new Error("Root Package Not Found! " + rootPackageId);
 	}
 
-	// console.log("root package", rootPackage);
+	console.log("root package", rootPackage);
 
 	var self = this;
 

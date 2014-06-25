@@ -9,9 +9,16 @@
 
 ldp:Resource rdfs:subClassOf owl:Thing .
 
+ldp:RDFSource rdfs:subClassOf ldp:Resource .
+ldp:NonRDFSource rdfs:subClassOf ldp:Resource .
+
 ldp:Container a owl:Class
 	; rdfs:subClassOf ldp:Resource
 .
+
+ldp:BasicContainer rdfs:subClassOf ldp:Container .
+ldp:DirectContainer rdfs:subClassOf ldp:Container .
+ldp:IndirectContainer rdfs:subClassOf ldp:Container .
 
 sema:Package a owl:Class
 	; rdfs:subClassOf owl:Class

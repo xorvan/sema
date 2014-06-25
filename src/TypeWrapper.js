@@ -34,28 +34,28 @@ TypeWrapper$.frame = function(framing){
 	}
 }
 
-TypeWrapper$.slug = function(slugger){
+TypeWrapper$.slug = function(slugger, proposed){
 	if(typeof slugger == "function"){
 		this.slugger = slugger;
 		this.hasSlugger = true;
 		return this;
 	}else{
-		return this.slugger(slugger);
+		return this.slugger(slugger, proposed);
 	}
 }
 
-TypeWrapper$.slugger = function(resource){
-	return uuid.v4();
+TypeWrapper$.slugger = function(resource, proposed){
+	return proposed || uuid.v4();
 }
 
-TypeWrapper$.identify = function(resource){
+TypeWrapper$.identify = function(resource, proposed){
 	// console.log("identify", resource, this.id)
 	var basePackage = this.basePackage;
 	if(!basePackage){
 		throw new Error("No Base Package found for " + this.id+"! identifying "+ JSON.stringify(resource));
 	}
 	var T = this.app.type(basePackage["@id"])
-		id = basePackage.pathTemplate == "{slug}" ? T.slug(resource) : basePackage.pathTemplate;
+		id = basePackage.pathTemplate == "{slug}" ? T.slug(resource, proposed) : basePackage.pathTemplate;
 
 
 	// console.log("basepkg", T.slugger, id)
