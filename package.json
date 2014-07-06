@@ -27,6 +27,8 @@
     "koa-compose": "*",
     "graph-store-client": "xorvan/graph-store-client",
     "node-uuid": "^1.4.1",
-    "raw-body": "^1.2.2"
+    "raw-body": "^1.2.2",
+    "co-fs": "^1.2.0",
+    "koa-send": "^1.2.3"
   }
 }

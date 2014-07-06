@@ -54,6 +54,27 @@ var ldp = module.exports = function(app){
 			if(!this.body._readableState){
 				this.body = addSubResources(pkg, path, this.body)
 				this.body = yield new this.rdf.Type(this.body, path);
+				var accepted;
+				switch(accepted = this.accepts(["application/ld+json", "text/plain", "application/nquads", "text/n3", "text/turtle", "application/json"])){
+					case "application/ld+json":
+						this.set("Content-Type", "application/ld+json");
+						break
+					case "text/plain":
+					case "application/nquads":
+					case "text/turtle":
+					case "text/n3":
+						this.set("Content-Type", accepted);
+
+						this.body = yield jsonld.toRDF(this.body, {format: 'application/nquads'})
+						break
+					case "application/json":
+					default:
+						this.set("Content-Type", "application/json");
+						delete this.body["@context"];
+						this.set("Link", '<?context>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"')
+
+				}
+
 			}
 		})
 
@@ -292,7 +313,7 @@ Resource$.process = co(function *(graph, id){
 		graph = {"@type": types, "@id": id};
 	}
 	var frame = this.app.getFrame(types)
-	frame["@context"]["@base"] = id;
+	// frame["@context"]["@base"] = id;
 	if(this.app.ns.vocab) frame["@context"]["@vocab"] = this.app.ns.vocab;
 	this._frame = frame;
 	var resource = flatten(yield jsonld.frame(graph, frame), id);

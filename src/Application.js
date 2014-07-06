@@ -376,7 +376,7 @@ Application$.init = co(function *(rootPackageId){
 	}
 
 	addTypeMaps(rootPackage);
-	// console.log(this.typeMaps);
+	// console.log("type maps", this.typeMaps);
 
 });
 
