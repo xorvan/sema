@@ -89,6 +89,10 @@ var Application = module.exports = function Application(ontology){
 
 	this.http = new HTTP(this);
 
+this.use(function *(next){
+  console.log("NEW REQUEST", this.header, this.request);
+  yield next;
+})
 	//Installing Body Parser
 	this.use(bodyParser());
 
@@ -101,10 +105,19 @@ var Application = module.exports = function Application(ontology){
 			var auth = this.header.authorization.split(' ');
 			if(auth.length > 1 && auth[0] == "Bearer"){
 				var token = auth[1];
-				var agent = yield this.app.db.query("select ?agent {?tk a h:Token; rdf:value ?hash. ?tk h:issuedFor ?agent}", {hash: token.lit()})
-				if(agent.length){
-					this.agent = agent[0].agent.value;
-					console.log("########## this agent ", this.agent)
+				var agents = yield this.app.db.query("select ?agent ?authagent {?tk a h:Token; rdf:value ?hash. ?tk h:issuedFor ?agent. OPTIONAL { ?agent h:delegateOf ?authagent.}}", {hash: token.lit()})
+				if(agents.length){
+					if(agents[0].authagent){
+						this.authenticatedAgent = agents[0].authagent.value;
+						this.agent = agents[0].agent.value;
+						agentDelegate = yield this.app.db.query("select ?deleg {?agent h:delegatedTo ?deleg. }", {agent: agents[0].agent.value.iri()});
+						if(agentDelegate.length){
+							this.agentDelegate = agentDelegate[0].deleg.value;
+						}
+					}else{
+						this.agent = this.authenticatedAgent = agents[0].agent.value;
+					}
+					console.log("########## this agent and authagent and agentDelegate", this.agent, this.authenticatedAgent, this.agentDelegate)
 				}
 			}
 		}
@@ -399,7 +412,8 @@ var HTTP = function(app){
 var systemSecret = "this is top secret string that should be kept hidden"
 HTTP.prototype = {
 	request: function(req){
-		req.mime = req.mime || "application/json";
+		if(!req.entity) delete req.entity;
+		req.mime = req.entity ? (req.mime || "application/json") : "text/plain";
 		req.path = this.app.ns.resolve(req.path);
 		if(!req.headers) req.headers = {};
 		//
