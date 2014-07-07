@@ -121,9 +121,29 @@ this.use(function *(next){
 				}
 			}
 		}
-
 		yield next;
 	});
+
+	this.use(function *(next){
+		//Package Finder
+		var rdf;
+		for(var i = 0; i < self.typeMaps.length; i++){
+			var pkg = this.app.typeMaps[i];
+			if(pkg.regex.test(this.path)){
+				var rdf = this.rdf = {};
+				this.rdf.Type = self.type(pkg.type);
+				this.rdf.type = yield this.rdf.Type.type();
+				console.log("rdf types", this.rdf.type);
+				break;
+			}
+		}
+
+		this.__defineGetter__("isRDFSource", function(){
+			return rdf && !~rdf.type.indexOf("http://www.w3.org/ns/ldp#NonRDFSource");
+		})
+
+		yield next;
+	})
 
 }
 
@@ -226,26 +246,7 @@ Application$.init = co(function *(rootPackageId){
 
 	//Installing middlewares
 	// this.use(require("koa-error")());
-	this.use(function *(next){
-		// console.log("received body", this.body)
-		//User
-		// console.log("HEADERRRRR ", this.header);
 
-		// this.agent = {id:"http://localhost:4001/people/Naghi_ShaNaghi"};
-		//Package Finder
-		for(var i = 0; i < self.typeMaps.length; i++){
-			var pkg = this.app.typeMaps[i];
-			if(pkg.regex.test(this.path)){
-				this.rdf = {};
-				this.rdf.Type = self.type(pkg.type);
-				this.rdf.type = yield this.rdf.Type.type();
-				// console.log("rdf types", this.rdf.type);
-				break;
-			}
-		}
-		console.log("rdf types", this.typeMaps)
-		yield next;
-	})
 	this.use(function *(next){
 		if(!this.rdf){
 			return next;
