@@ -228,13 +228,14 @@ var ldp = module.exports = function(app){
 
 				yield next;
 
-				res["@id"] = T.identify(res);
+				var id = T.identify(res);
+				res["@id"] = app.ns.resolve(id);
 
 				var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
-				// console.log("salam", triples, T.package)
+				console.log("salam", triples, T.package, res)
 				yield app.db.update("INSERT DATA { ?triples }", {triples: triples})
 				// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
-				this.set("Location", encodeURI(res["@id"]));
+				this.set("Location", encodeURI(id));
 				this.status = 201;
 
 				console.log("end of new resource posted", res)
