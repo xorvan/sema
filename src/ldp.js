@@ -32,7 +32,7 @@ function addSubResources(pkg, path, res){
 	if(pkg.hasSubResource){
 		if(!res) res = {};
 		pkg.hasSubResource.forEach(function(sr){
-			res[sr.subResourceRelation] = {"@id": joinPath(path, sr.pathTemplate)};
+			res[sr.subResourceRelation] = {"@id": app.ns.resolve(joinPath(path, sr.pathTemplate))};
 		}.bind(this));
 	}
 	return res;
@@ -191,7 +191,7 @@ var ldp = module.exports = function(app){
 			    encoding: this.charset
 			  });
 
-				var location = T.identify(res, this.header.slug);
+				var location = T.identify(res, this.header.slug.replace(/( |:)/g, "_"));
 				var p = path.join(app.env.nonRDFSourceRoot, location);
 				console.log("binary", p, res)
 
@@ -248,7 +248,7 @@ var ldp = module.exports = function(app){
 				"ldp:hasMemberRelation": {"@type": "@id"},
 				"ldp:membershipResource": {"@type": "@id"},
 				"ldp:insertedContentRelation": {"@type": "@id"},
-				"$members": "ldp:contains"
+				"$members": {"@id": "ldp:contains", "@container": "@set"}
 			}
 		})
 
