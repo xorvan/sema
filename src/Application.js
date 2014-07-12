@@ -96,6 +96,8 @@ this.use(function *(next){
 	//Installing Body Parser
 	this.use(bodyParser());
 
+	//Error handling
+	this.use(require("koa-error")());
 
 	//authorization middleware
 	this.use(function *(next){
@@ -172,7 +174,7 @@ Application$.use = function(mw){
 
 			if(t.hasSlugger){
 				// console.log("importing slugger", tid)
-				dt.slug(t.slugger);
+				dt.slug(t._slugger);
 			}
 
 			if(t.hasFrame){
@@ -243,9 +245,7 @@ Application$.getFrame = function(types){
 
 Application$.init = co(function *(rootPackageId){
 
-
 	//Installing middlewares
-	// this.use(require("koa-error")());
 
 	this.use(function *(next){
 		if(!this.rdf){
@@ -259,7 +259,7 @@ Application$.init = co(function *(rootPackageId){
 		}
 		// console.log("routes ", mw);
 		if(mw.length){
-			yield compose(mw.concat(function *(){yield next}));
+			yield compose(mw);
 		}else{
 			yield next;
 		}
@@ -331,7 +331,8 @@ Application$.init = co(function *(rootPackageId){
 				"subResourceRelation": {"@type": "@id"},
 				"subResourceOf": {"@type": "@id"},
 				"expectedType": {"@type": "@id", "@id": "expects"},
-				"subClassOf": {"@type": "@id", "@id": "rdfs:subClassOf"}
+				"subClassOf": {"@type": "@id", "@id": "rdfs:subClassOf"},
+				"storageType": {"@type": "@id"}
 			},
 
 		"@type": "Package",
@@ -428,7 +429,10 @@ HTTP.prototype = {
 		.wrap(locationInterceptor)
 		.wrap(require('rest/interceptor/errorCode'))
 		.wrap(require('rest/interceptor/entity'))
-		(req);
+		(req)
+		.catch(function(e){
+			throw new Error("HTTP Client Error: (" + e.status + ") "+ (e.message || JSON.stringify(e)));
+		});
 	},
 	post: function(url, data){
 			console.log("posting....")

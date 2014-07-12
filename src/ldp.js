@@ -43,9 +43,10 @@ var ldp = module.exports = function(app){
 	app.type("ldp:Resource")
 		.get(function *(next){
 			var path = decodeURI(this.path)
-			var resource = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
-			// console.log("PATH IS", path, JSON.stringify(resource))
 			var pkg = this.rdf.Type.package;
+			console.log(pkg)
+			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
+			// console.log("PATH IS", path, JSON.stringify(resource))
 			this.body = resource.length ? this.body = yield new this.rdf.Type(resource, path) : this.body = yield new this.rdf.Type(path);
 
 			yield next;
@@ -177,10 +178,16 @@ var ldp = module.exports = function(app){
 		})
 		.post(function *(next){
 			var res = this.request.body
+				, slug = this.header.slug
 				, p = this.rdf.Type.package
 				, T = app.type(p.expectedType || app.ns.resolve("owl:Thing"))
 				, types = yield T.type();
 			;
+
+			// Removing spaces and colons from slug
+			if(slug){
+				slug = slug.replace(/( |:)/g, "_");
+			}
 
 			console.log("expected type", types);
 			if(~types.indexOf("http://www.w3.org/ns/ldp#NonRDFSource")){
@@ -191,7 +198,7 @@ var ldp = module.exports = function(app){
 			    encoding: this.charset
 			  });
 
-				var location = T.identify(res, this.header.slug.replace(/( |:)/g, "_"));
+				var location = yield res.$identify(slug);
 				var p = path.join(app.env.nonRDFSourceRoot, location);
 				console.log("binary", p, res)
 
@@ -228,7 +235,7 @@ var ldp = module.exports = function(app){
 
 				yield next;
 
-				var id = T.identify(res);
+				var id = yield res.$identify(slug);
 				res["@id"] = app.ns.resolve(id);
 
 				var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
@@ -270,6 +277,14 @@ var Resource$ = ldp.Resource.prototype;
 Resource$.type = function(){
 	return Q([]);
 };
+
+Resource$.$identify = function (proposed){
+	return this.constructor.identify(this, proposed);
+}
+
+Resource$.$slug = function(proposed){
+	return this.constructor.slug(this, proposed);
+}
 
 // Resource$.__defineGetter__("json", function(){
 // 	return utile.clone(this);

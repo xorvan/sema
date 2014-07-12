@@ -2,6 +2,7 @@ var utile = require("utile")
 	, methods = require("./methods")
 	, Q = require("q")
 	, co = require("co")
+	, thunkify = require("thunkify")
 	, uuid = require("node-uuid")
 	, joinPath = require("./joinPath.js")
 ;
@@ -36,7 +37,8 @@ TypeWrapper$.frame = function(framing){
 
 TypeWrapper$.slug = function(slugger, proposed){
 	if(typeof slugger == "function"){
-		this.slugger = slugger;
+		console.log("registering slugger", this.id, slugger)
+		this._slugger = slugger;
 		this.hasSlugger = true;
 		return this;
 	}else{
@@ -44,18 +46,32 @@ TypeWrapper$.slug = function(slugger, proposed){
 	}
 }
 
-TypeWrapper$.slugger = function(resource, proposed){
-	return proposed || uuid.v4();
+TypeWrapper$.slugger = function *(resource, proposed){
+	if(this._slugger){
+		var slug = this._slugger.call(resource, proposed);
+		if(slug.next){
+			yield* slug;
+		}else{
+			yield slug;
+			for(var i=0; i< 10; i++)
+				yield slug + "_" + ~~(Math.random() * 100000);
+		}
+	}else if(proposed){
+		yield proposed;
+	}
+
+	return uuid.v4();
 }
 
-TypeWrapper$.identify = function(resource, proposed){
+TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 	// console.log("identify", resource, this.id)
 	var basePackage = this.basePackage;
 	if(!basePackage){
 		throw new Error("No Base Package found for " + this.id+"! identifying "+ JSON.stringify(resource));
 	}
+
 	var T = this.app.type(basePackage["@id"])
-		id = basePackage.pathTemplate == "{slug}" ? T.slug(resource, proposed) : basePackage.pathTemplate;
+		id = "";
 
 
 	// console.log("basepkg", T.slugger, id)
@@ -90,10 +106,27 @@ TypeWrapper$.identify = function(resource, proposed){
 				p = this.app.type(p.subResourceOf).package;
 			}
 		}
+
+		if(basePackage.pathTemplate == "{slug}"){
+			var ST = getSlugType(this.app, T);
+			console.log("slug type is", ST.id)
+			var slugger = ST.slug(resource, proposed);
+			do{
+				var slug = slugger.next();
+				var r = "/" + joinPath(id, slug.value);
+				var found = yield app.db.query("ASK {?id ?s ?p}", {id: r.iri()});
+				console.log("found", found, slug)
+			}while(found)
+			return r;
+		}else{
+			return "/" + joinPath(id, basePackage.pathTemplate);
+		}
+
+
 		// console.log("idddddd", id)
-		return "/" + id;
+
 	}
-}
+}))
 
 TypeWrapper$.type = function(){
 	if(this._types){
@@ -123,6 +156,25 @@ function getBaseType(app, pkg){
 	}
 	return app.rootPackage;
 }
+
+function getSlugType(app, type){
+	console.log("st", type.id, type.hasSlugger)
+	if(type.hasSlugger) return type;
+
+	var packages = type.package["subClassOf"];
+
+	if(!packages)
+		return type;
+
+	for(var i = 1; i <= packages.length; i++){
+		// console.log("ppppp", packages[i])
+		var superType = app.type(packages[i]);
+		console.log("st", superType.id, superType.hasSlugger)
+		if(superType.hasSlugger) return superType;
+	}
+	return type;
+}
+
 
 TypeWrapper$.__defineGetter__("basePackage", function(){
 	return getBaseType(this.app, this.package)
