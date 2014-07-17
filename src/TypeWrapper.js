@@ -1,8 +1,10 @@
 var utile = require("utile")
+	, debug = require("debug")("sema:TypeWrapper")
 	, methods = require("./methods")
 	, Q = require("q")
 	, co = require("co")
 	, thunkify = require("thunkify")
+	, jsonld = require("jsonld").promises()
 	, uuid = require("node-uuid")
 	, joinPath = require("./joinPath.js")
 ;
@@ -37,7 +39,6 @@ TypeWrapper$.frame = function(framing){
 
 TypeWrapper$.slug = function(slugger, proposed){
 	if(typeof slugger == "function"){
-		console.log("registering slugger", this.id, slugger)
 		this._slugger = slugger;
 		this.hasSlugger = true;
 		return this;
@@ -64,7 +65,7 @@ TypeWrapper$.slugger = function *(resource, proposed){
 }
 
 TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
-	// console.log("identify", resource, this.id)
+	debug("Identify %s, %s", resource, this.id)
 	var basePackage = this.basePackage;
 	if(!basePackage){
 		throw new Error("No Base Package found for " + this.id+"! identifying "+ JSON.stringify(resource));
@@ -74,14 +75,11 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 		id = "";
 
 
-	// console.log("basepkg", T.slugger, id)
 	if(!basePackage.subResourceOf){
 		throw new Error(basePackage["@id"] + " is subResource of nothing!")
 	}else{
-		// console.log("basePackage.subResourceOf", basePackage.subResourceOf)
 		var np, p = this.app.type(basePackage.subResourceOf).package;
 		while(p && p["@id"] != this.app.rootPackage["@id"]){
-			// console.log("idddddd11", id, p)
 			p = this.app.type(getBaseType(this.app, p )["@id"]).package;
 
 			//TODO: check container template container resource template with occured {slug}
@@ -121,11 +119,8 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 		}else{
 			return "/" + joinPath(id, basePackage.pathTemplate);
 		}
-
-
-		// console.log("idddddd", id)
-
 	}
+
 }))
 
 TypeWrapper$.type = function(){
@@ -141,6 +136,17 @@ TypeWrapper$.type = function(){
 	return deferred.promise;
 }
 
+TypeWrapper$.query = thunkify(co(function *(qs, bindings){
+	var res = yield this.app.db.query(qs, bindings);
+	var types = yield this.type();
+	var frame = this.app.getFrame(types)
+	frame["@type"] = this.id;
+	var framed = yield jsonld.frame(res, frame);
+	framed["@set"] = framed["@graph"];
+	delete framed["@graph"];
+	return framed;
+}))
+
 function getBaseType(app, pkg){
 	if(pkg.pathTemplate) return pkg;
 
@@ -150,7 +156,6 @@ function getBaseType(app, pkg){
 		return pkg;
 
 	for(var i = 1; i <= packages.length; i++){
-		// console.log("ppppp", packages[i])
 		var pkg = app.getPackage(packages[i]);
 		if(pkg.pathTemplate) return pkg;
 	}
@@ -158,7 +163,7 @@ function getBaseType(app, pkg){
 }
 
 function getSlugType(app, type){
-	console.log("st", type.id, type.hasSlugger)
+	debug("Finding Slugger Type for %s %s", type.id, type.hasSlugger)
 	if(type.hasSlugger) return type;
 
 	var packages = type.package["subClassOf"];
@@ -166,10 +171,9 @@ function getSlugType(app, type){
 	if(!packages)
 		return type;
 
-	for(var i = 1; i <= packages.length; i++){
-		// console.log("ppppp", packages[i])
+	debug("Super types", packages)
+	for(var i = 0; i < packages.length; i++){
 		var superType = app.type(packages[i]);
-		console.log("st", superType.id, superType.hasSlugger)
 		if(superType.hasSlugger) return superType;
 	}
 	return type;

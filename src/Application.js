@@ -3,6 +3,7 @@ var koa = require("koa")
 	, url = require('url')
 	, path = require('path')
 	, jsonld = require("jsonld").promises()
+	, debug = require("debug")("sema:Application")
 	, Q = require('q')
 	, fs = require("fs")
 	, rest = require('rest')
@@ -89,10 +90,6 @@ var Application = module.exports = function Application(ontology){
 
 	this.http = new HTTP(this);
 
-this.use(function *(next){
-  console.log("NEW REQUEST", this.header, this.request);
-  yield next;
-})
 	//Installing Body Parser
 	this.use(bodyParser());
 
@@ -119,7 +116,7 @@ this.use(function *(next){
 					}else{
 						this.agent = this.authenticatedAgent = agents[0].agent.value;
 					}
-					console.log("########## this agent and authagent and agentDelegate", this.agent, this.authenticatedAgent, this.agentDelegate)
+					debug("########## this agent and authagent and agentDelegate", this.agent, this.authenticatedAgent, this.agentDelegate)
 				}
 			}
 		}
@@ -135,7 +132,7 @@ this.use(function *(next){
 				var rdf = this.rdf = {};
 				this.rdf.Type = self.type(pkg.type);
 				this.rdf.type = yield this.rdf.Type.type();
-				console.log("rdf types", this.rdf.type);
+				debug("rdf types", this.rdf.type);
 				break;
 			}
 		}
@@ -155,7 +152,7 @@ Application$.__proto__ = utile.mixin(koa.prototype, EventEmitter2.prototype);
 
 Application$.use = function(mw){
 	if(typeof mw == "object" && mw instanceof Application){
-		console.log("Using Sema Application ...");
+		debug("Using Sema Application ...");
 		this._modules.push(mw);
 
 		// Merging middlewares
@@ -173,7 +170,6 @@ Application$.use = function(mw){
 				dt = this.type(tid);
 
 			if(t.hasSlugger){
-				// console.log("importing slugger", tid)
 				dt.slug(t._slugger);
 			}
 
@@ -184,8 +180,6 @@ Application$.use = function(mw){
 
 		mw.env = this.env;
 
-
-		// console.log("ROUTES", JSON.stringify(this.routes.get), JSON.stringify(mw.routes.get))
 	}else{
 		return koa.prototype.use.call(this, mw);
 	}
@@ -193,7 +187,6 @@ Application$.use = function(mw){
 
 Application$.type = function(id){
 	var id = this.ns.resolve(id), self = this;
-	// console.log("resolving",id)
 	if(this._types[id]){
 		return this._types[id];
 	}else{
@@ -257,14 +250,12 @@ Application$.init = co(function *(rootPackageId){
 			var t;
 			if(t = routes[types[i]]) mw = mw.concat(t);
 		}
-		// console.log("routes ", mw);
 		if(mw.length){
 			yield compose(mw);
 		}else{
 			yield next;
 		}
 	})
-
 
 	if(process.env.ONTOLOGY != "same"){
 		try{
@@ -284,7 +275,7 @@ Application$.init = co(function *(rootPackageId){
 				}
 			}
 
-			console.log("Ontology is \n", ontology);
+			debug("Ontology is \n", ontology);
 
 			if(fs.existsSync(".loadedOntology.ttl")){
 				var prevOntology = fs.readFileSync(".loadedOntology.ttl");
@@ -344,14 +335,14 @@ Application$.init = co(function *(rootPackageId){
 		"hasSubResource": {"@type": "Package", "@embed": true}
 		}
 	);
-// console.log(ddd, packages)
+
 	var rootPackage = this.rootPackage = this.getPackage(rootPackageId);
 
 	if(!rootPackage){
 		throw new Error("Root Package Not Found! " + rootPackageId);
 	}
 
-	console.log("root package", rootPackage);
+	debug("root package", rootPackage);
 
 	var self = this;
 
@@ -366,7 +357,7 @@ Application$.init = co(function *(rootPackageId){
 
 			for(var i=0; i < pkg.hasSubResource.length; i++){
 				if(pkg.hasSubResource[i]["@id"] == pkg["@id"]){
-					console.log("Recursion detected changing path ...", pkg["@id"]);
+					debug("Recursion detected changing path ...", pkg["@id"]);
 					pathTemplate = "(" + pkg.pathTemplate + "/?)*";
 					break;
 				}
@@ -379,7 +370,7 @@ Application$.init = co(function *(rootPackageId){
 		if(pkg.hasSubResource){
 			for(var i = 0; i < pkg.hasSubResource.length; i++){
 				if(pkg.hasSubResource[i]["@id"] == pkg["@id"]){
-					console.log("Recursion detected, ignoring ...", pkg["@id"]);
+					debug("Recursion detected, ignoring ...", pkg["@id"]);
 				}else{
 					addTypeMaps(self.getPackage(pkg.hasSubResource[i]["@id"]), path);
 				}
@@ -391,7 +382,7 @@ Application$.init = co(function *(rootPackageId){
 	}
 
 	addTypeMaps(rootPackage);
-	// console.log("type maps", this.typeMaps);
+	debug("Type Maps: ", this.typeMaps);
 
 });
 
@@ -410,6 +401,7 @@ Application$.getPackage = function(id){
 
 var HTTP = function(app){
 	this.app = app;
+	this.Resource = app.type("ldp:Resource");
 }
 var systemSecret = "this is top secret string that should be kept hidden"
 HTTP.prototype = {
@@ -418,16 +410,29 @@ HTTP.prototype = {
 		req.mime = req.entity ? (req.mime || "application/json") : "text/plain";
 		req.path = this.app.ns.resolve(req.path);
 		if(!req.headers) req.headers = {};
+		var Resource = this.Resource;
 		//
 		// req.headers["Accept-Charset"] = req.headers["Accept-Charset"] || "utf-8";
 		// req.headers["Accept"] = req.headers["Accept"] || "application/ld+json,application/json";
 		// req.headers["Content-Type"] = req.headers["Content-Type"] || "application/json;charset=UTF-8";
 		req.headers["x-sema-secret"] = systemSecret;
-		console.log("req", req);
 		return rest
 		.wrap(require("rest/interceptor/mime"), {accept: "application/ld+json,application/json", mime: req.mime})
 		.wrap(locationInterceptor)
 		.wrap(require('rest/interceptor/errorCode'))
+		.wrap(require('rest/interceptor')({
+			response: function (response) {
+				if(!response.headers){
+					debug("Response has no headers!", response)
+					return response;
+				}
+				if(response.headers["Content-Type"] == "application/ld+json"){
+					response.entity = new Resource(response.entity);
+					debug("HTTP Result Response is JSON-LD")
+				}
+				return response;
+			}
+		}))
 		.wrap(require('rest/interceptor/entity'))
 		(req)
 		.catch(function(e){
@@ -435,14 +440,7 @@ HTTP.prototype = {
 		});
 	},
 	post: function(url, data){
-			console.log("posting....")
-		try{
-			var r = this.request({path: url, entity: data, method: "POST"});
-			console.log("req is ", r)
-			return r
-		}catch(e){
-			console.log("post error", e)
-		}
+		return this.request({path: url, entity: data, method: "POST"});
 	},
 	get: function(url, data){
 		return this.request({path: url, entity: data, method: "GET"});

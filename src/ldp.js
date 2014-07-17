@@ -1,5 +1,7 @@
 var jsonld = require("jsonld").promises()
+	, debug = require("debug")("sema:ldp")
 	, co = require("co")
+	, thunkify = require("thunkify")
 	, sys = require("sys")
 	, Q = require("q")
 	, utile = require("utile")
@@ -13,18 +15,15 @@ var jsonld = require("jsonld").promises()
 ;
 
 function flatten(framed, id){
-	// console.log("flatting", id, framed);
 	var base = framed["@context"] && framed["@context"]["@base"], r = {}, graph = framed["@graph"];
 
 	for(var i = 0; i < graph.length; i++){
-		// console.log(id, (base ? url.resolve(base, graph[i]["@id"]) : graph[i]["@id"] ))
 		if(id == (base ? url.resolve(base, graph[i]["@id"]) : graph[i]["@id"] )){
 			r = graph[i];
 			break;
 		}
 	}
 	r["@context"] = framed["@context"];
-	// console.log("flatted", r)
 	return r;
 }
 
@@ -35,6 +34,7 @@ function addSubResources(pkg, path, res){
 			res[sr.subResourceRelation] = {"@id": app.ns.resolve(joinPath(path, sr.pathTemplate))};
 		}.bind(this));
 	}
+	debug("Adding Sub Resources", pkg, path, res)
 	return res;
 }
 
@@ -44,10 +44,11 @@ var ldp = module.exports = function(app){
 		.get(function *(next){
 			var path = decodeURI(this.path)
 			var pkg = this.rdf.Type.package;
-			console.log(pkg)
+			debug("Getting LDP Resource, package", path, pkg);
 			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
-			// console.log("PATH IS", path, JSON.stringify(resource))
+			debug("Getting LDP Resource, resource", resource);
 			this.body = resource.length ? this.body = yield new this.rdf.Type(resource, path) : this.body = yield new this.rdf.Type(path);
+			debug("Getting LDP Resource, body", this.body);
 
 			yield next;
 
@@ -79,17 +80,57 @@ var ldp = module.exports = function(app){
 			}
 		})
 
-		.put(function *(next){
-			var res = yield* this.request.json();
-			res["@id"] = app.ns.resolve(this.url);
-			this.request.body = yield new this.rdf.Type(res, this.url)
-			console.log("i have got a putttttt to ldp:resource   ", this.request.body)
+		.delete(function *(next){
+			var path = decodeURI(this.path)
+
+			var res = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
+			this.body = yield new this.rdf.Type(res, path)
+			debug("Deleteing Resource Current", this.path, this.body)
+
+			this.sparql = {
+				update: "DELETE DATA { ?resource }",
+				params: {}
+			}
 
 			yield next;
 
-			console.log("putting", this.url, this.request.body);
-			this.body = yield app.db.put(this.url, this.request.body);
-			console.log("puted");
+			var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
+			this.sparql.params.resource = triples;
+
+			yield app.db.update(this.sparql.update, this.sparql.params)
+
+			this.status = 204;
+		})
+
+		.put(function *(next){
+			var path = decodeURI(this.path)
+			var newRes = this.request.body;
+			newRes["@id"] = path;
+			this.request.body = yield new this.rdf.Type(newRes, path)
+			debug("Putting Resource Requested", this.path, path)
+
+			var res = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
+			this.body = yield new this.rdf.Type(res, path)
+			debug("Putting Resource Current", this.path, this.body)
+
+			this.sparql = {
+				update: "DELETE { ?resource } INSERT{ ?newResource } WHERE {}",
+				params: {}
+			}
+
+			yield next;
+
+			debug("Putting Resource New", this.url, this.request.body);
+
+			var triples = yield jsonld.toRDF(this.request.body, {format: 'application/nquads'});
+			this.sparql.params.newResource = triples;
+
+			var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
+			this.sparql.params.resource = triples;
+
+			yield app.db.update(this.sparql.update, this.sparql.params)
+
+			this.status = 204;
 		})
 
 		.frame({
@@ -117,9 +158,9 @@ var ldp = module.exports = function(app){
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
 
 				if(package.membershipResourceTemplate){
-					package.membershipResource = app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate));
+					package.membershipResource = decodeURI(app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate)));
 				}
-				// console.log("pkg", package);
+
 				var qs;
 				if(package.isMemberOfRelation){
 					qs = "select (count(?s) as ?count) { ?s ?isMemberOfRelation ?membershipResource}";
@@ -170,10 +211,8 @@ var ldp = module.exports = function(app){
 					hasMemberRelation: package.hasMemberRelation.iri()
 				});
 
-				// console.log("con body", this.body);
-
+				debug("Container Get Resource", this.body)
 				yield next;
-
 			}
 		})
 		.post(function *(next){
@@ -189,7 +228,8 @@ var ldp = module.exports = function(app){
 				slug = slug.replace(/( |:)/g, "_");
 			}
 
-			console.log("expected type", types);
+			debug("New post on Container, Expected type:", types);
+
 			if(~types.indexOf("http://www.w3.org/ns/ldp#NonRDFSource")){
 				res = yield new T("new");
 				res.value = yield getRawBody(this.req, {
@@ -200,7 +240,6 @@ var ldp = module.exports = function(app){
 
 				var location = yield res.$identify(slug);
 				var p = path.join(app.env.nonRDFSourceRoot, location);
-				console.log("binary", p, res)
 
 				yield fs.writeFile(p, res.value);
 
@@ -208,7 +247,8 @@ var ldp = module.exports = function(app){
 				this.status = 201;
 
 			}else{
-				console.log("new resource posted", res)
+				debug("Posted RDFSource: ", res)
+
 				res["@id"] = app.ns.resolve("new");
 				if(this.is('application/json')){
 					if(!res["@type"]){
@@ -220,18 +260,20 @@ var ldp = module.exports = function(app){
 					res["@context"] = app.getFrame(types)["@context"];
 					res["@context"]["@base"] = app.ns.resolve(this.path)
 				}
-				// console.log("p is ", p)
-				// console.log("posted is ", res )
 
 				if(p.isMemberOfRelation){
 					//TODO: insertedContentRelation checking
 					var membershipResource = p.membershipResourceTemplate ? app.ns.resolve( url.resolve(this.path, p.membershipResourceTemplate) ) : p.membershipResource;
-
 					res[p.isMemberOfRelation] = {"@id" : membershipResource};
 				}
-				console.log("parsing resource", res)
+
 				res = yield new T(res);
 				this.request.body = res;
+
+				this.sparql = {
+					update: "INSERT DATA { ?newResource }",
+					params: {}
+				}
 
 				yield next;
 
@@ -239,13 +281,12 @@ var ldp = module.exports = function(app){
 				res["@id"] = app.ns.resolve(id);
 
 				var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
-				console.log("salam", triples, T.package, res)
-				yield app.db.update("INSERT DATA { ?triples }", {triples: triples})
+				this.sparql.params.newResource = triples;
+
+				yield app.db.update(this.sparql.update, this.sparql.params)
 				// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
 				this.set("Location", encodeURI(id));
 				this.status = 201;
-
-				console.log("end of new resource posted", res)
 			}
 		})
 		.frame({
@@ -301,7 +342,14 @@ Resource$.process = co(function *(graph, id){
 		var id = id && this.app.ns.resolve(id) || graph["@id"];
 		if(!id)
 			throw new Error("No id specified for " + JSON.stringify(graph));
+		if(!graph["@context"] || !graph["@context"]["@base"]){
+			if(!graph["@context"]) graph["@context"] = {};
+
+			graph["@context"]["@base"] = this.app.ns.base;
+		}
+		debug("Processing Resource graph");
 		graph = yield jsonld.expand(graph);
+		debug("Expanded Resource graph", graph);
 
 		for(var i=0; i< graph.length; i++){
 			if(graph[i]["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"]){
@@ -315,7 +363,6 @@ Resource$.process = co(function *(graph, id){
 		}
 		if(!types){
 			console.log("Warning: Invalid ID! Could not find " + id + " in " + JSON.stringify(graph))
-			// console.log("conss", arguments.callee)
 
 			var deferred = Q.defer();
 			co(arguments.callee).call(this, id, null, deferred.makeNodeResolver() );
@@ -330,17 +377,71 @@ Resource$.process = co(function *(graph, id){
 	}
 	var frame = this.app.getFrame(types)
 	// frame["@context"]["@base"] = id;
+	frame["@type"] = this.id;
 	if(this.app.ns.vocab) frame["@context"]["@vocab"] = this.app.ns.vocab;
 	this._frame = frame;
-	var resource = flatten(yield jsonld.frame(graph, frame), id);
+	debug("Framing Resource using", frame)
+	var framed = yield jsonld.frame(graph, frame);
+	debug("Framed Resource", framed)
+	var resource = flatten(framed, id);
 	resource.__proto__ = this.__proto__;
 	if(~types.indexOf(this.app.ns.resolve("ldp:Container"))){
 		resource.__proto__.__proto__ = Container$;
 		resource.bindMembers(graph);
 	}
-	// console.log("restouce is ", resource)
 	return resource;
 })
+
+var actions = {
+	'get': {method: "GET"},
+	'put': {method: "PUT", autoData: true},
+	'post': {method: "POST", autoData: true},
+	'delete': {method: "DELETE"},
+	'patch': {method: "PATCH"}
+}
+
+for (var name in actions){ (function(name, action){
+	Resource$["$" + name] = thunkify(co(function *(params, data) {
+		var app = this.constructor.app;
+
+		if(!data && (typeof params != "string") && !params.rel ){
+			data = params;
+			params = {rel: "self"};
+		}
+
+		if(!params) params = {rel: "self"};
+
+		if(typeof params == "string") params = {rel: params};
+
+		if(!data && action.autoData) data = this;
+
+		var expanded = yield jsonld.expand(this);
+
+		var resource = expanded[0],
+			httpConfig = {method: action.method}
+		;
+
+		if(!params.rel || params.rel == "self"){
+			httpConfig.path = resource["@id"];
+		}else{
+			var predicate = app.ns.resolve(params.rel),
+				rel = resource[predicate];
+
+			if(!rel)
+				throw Error('badrel', "Relation "+ predicate +" not found in the resource " + resource);
+
+			httpConfig.path = rel[0]["@id"];
+		}
+
+		if(data) httpConfig.data = data;
+
+		debug("Requesting", httpConfig);
+		return yield app.http.request(httpConfig);
+
+	}));
+})(name, actions[name]) }
+
+
 
 ldp.Container = function (app, graph, id){
 	return this.constructor.super_.apply(this, arguments);
