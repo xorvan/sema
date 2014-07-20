@@ -2,6 +2,7 @@ var koa = require("koa")
 	, utile = require('utile')
 	, url = require('url')
 	, path = require('path')
+	, assert = require('assert')
 	, jsonld = require("jsonld").promises()
 	, debug = require("debug")("sema:Application")
 	, Q = require('q')
@@ -26,6 +27,7 @@ var defaultEnv = {
 	sparqlEndpoint: "http://localhost:5820/test/query"
 	, graphStoreEndpoint: "http://localhost:5820/test"
 	, cookieSecret: "Hermes is the God of Technology!"
+	, secret: "Hermes is the God of Technology!"
 	, host: "localhost:4000"
 }
 
@@ -96,33 +98,6 @@ var Application = module.exports = function Application(ontology){
 	//Error handling
 	this.use(require("koa-error")());
 
-	//authorization middleware
-	this.use(function *(next){
-		if(this.header["x-sema-secret"] && this.header["x-sema-secret"] == systemSecret){
-			this.agent = {id:"sema-system"};
-		}else if(this.header.authorization){
-			var auth = this.header.authorization.split(' ');
-			if(auth.length > 1 && auth[0] == "Bearer"){
-				var token = auth[1];
-				var agents = yield this.app.db.query("select ?agent ?authagent {?tk a h:Token; rdf:value ?hash. ?tk h:issuedFor ?agent. OPTIONAL { ?agent h:delegateOf ?authagent.}}", {hash: token.lit()})
-				if(agents.length){
-					if(agents[0].authagent){
-						this.authenticatedAgent = agents[0].authagent.value;
-						this.agent = agents[0].agent.value;
-						agentDelegate = yield this.app.db.query("select ?deleg {?agent h:delegatedTo ?deleg. }", {agent: agents[0].agent.value.iri()});
-						if(agentDelegate.length){
-							this.agentDelegate = agentDelegate[0].deleg.value;
-						}
-					}else{
-						this.agent = this.authenticatedAgent = agents[0].agent.value;
-					}
-					debug("########## this agent and authagent and agentDelegate", this.agent, this.authenticatedAgent, this.agentDelegate)
-				}
-			}
-		}
-		yield next;
-	});
-
 	this.use(function *(next){
 		//Package Finder
 		var rdf;
@@ -178,6 +153,9 @@ Application$.use = function(mw){
 			}
 		}
 
+		//Merging HTTP interceptors
+		this.http.interceptors = this.http.interceptors.concat(mw.http.interceptors);
+
 		mw.env = this.env;
 
 	}else{
@@ -223,7 +201,7 @@ Application$.getFrame = function(types){
 			var t, c, r;
 			if( t = this.framings[types[i]]){
 				r = utile.mixin(utile.clone(f), t);
-				if(f["@context"]){
+				if(f["@context"] && t["@context"]){
 					r["@context"] = utile.mixin(utile.clone(f["@context"]), t["@context"]);
 				}
 				f = r;
@@ -242,7 +220,7 @@ Application$.init = co(function *(rootPackageId){
 
 	this.use(function *(next){
 		if(!this.rdf){
-			return next;
+			return yield next;
 		}
 		//Router
 		var types = this.rdf.type, routes = self.routes[this.method.toLowerCase()], mw = [];
@@ -251,7 +229,9 @@ Application$.init = co(function *(rootPackageId){
 			if(t = routes[types[i]]) mw = mw.concat(t);
 		}
 		if(mw.length){
+			// yield compose(mw.concat(function *(){yield next}));
 			yield compose(mw);
+			yield next;
 		}else{
 			yield next;
 		}
@@ -399,11 +379,14 @@ Application$.getPackage = function(id){
 
 
 
+var Interceptor = require('rest/interceptor');
+
 var HTTP = function(app){
 	this.app = app;
 	this.Resource = app.type("ldp:Resource");
+	this.interceptors = [];
 }
-var systemSecret = "this is top secret string that should be kept hidden"
+
 HTTP.prototype = {
 	request: function(req){
 		if(!req.entity) delete req.entity;
@@ -415,12 +398,17 @@ HTTP.prototype = {
 		// req.headers["Accept-Charset"] = req.headers["Accept-Charset"] || "utf-8";
 		// req.headers["Accept"] = req.headers["Accept"] || "application/ld+json,application/json";
 		// req.headers["Content-Type"] = req.headers["Content-Type"] || "application/json;charset=UTF-8";
-		req.headers["x-sema-secret"] = systemSecret;
-		return rest
+
+		var client = rest;
+		for (var i = 0; i < this.interceptors.length; i++){
+			debug("using interceptor", this.interceptors[i] )
+			client = client.wrap(Interceptor(this.interceptors[i]));
+		}
+		return client
 		.wrap(require("rest/interceptor/mime"), {accept: "application/ld+json,application/json", mime: req.mime})
 		.wrap(locationInterceptor)
 		.wrap(require('rest/interceptor/errorCode'))
-		.wrap(require('rest/interceptor')({
+		.wrap(Interceptor({
 			response: function (response) {
 				if(!response.headers){
 					debug("Response has no headers!", response)
@@ -436,7 +424,7 @@ HTTP.prototype = {
 		.wrap(require('rest/interceptor/entity'))
 		(req)
 		.catch(function(e){
-			throw new Error("HTTP Client Error: (" + e.status + ") "+ (e.message || JSON.stringify(e)));
+			throw new Error("HTTP Client Error: (" + e.status + ") ["+ req.path+"]"+ (e.message || JSON.stringify(e)));
 		});
 	},
 	post: function(url, data){

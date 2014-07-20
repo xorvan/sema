@@ -44,6 +44,7 @@ var ldp = module.exports = function(app){
 		.get(function *(next){
 			var path = decodeURI(this.path)
 			var pkg = this.rdf.Type.package;
+
 			debug("Getting LDP Resource, package", path, pkg);
 			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
 			debug("Getting LDP Resource, resource", resource);
@@ -55,7 +56,7 @@ var ldp = module.exports = function(app){
 			//TODO: implementing ldp:RDFSource
 			if(!this.body._readableState){
 				this.body = addSubResources(pkg, path, this.body)
-				this.body = yield new this.rdf.Type(this.body, path);
+				this.body = yield new this.rdf.Type(this.body);
 				var accepted;
 				switch(accepted = this.accepts(["application/ld+json", "text/plain", "application/nquads", "text/n3", "text/turtle", "application/json"])){
 					case "application/ld+json":
@@ -375,6 +376,7 @@ Resource$.process = co(function *(graph, id){
 		types = yield this.type();
 		graph = {"@type": types, "@id": id};
 	}
+	debug("getting frame for", types);
 	var frame = this.app.getFrame(types)
 	// frame["@context"]["@base"] = id;
 	frame["@type"] = this.id;

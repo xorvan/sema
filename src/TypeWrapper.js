@@ -7,6 +7,7 @@ var utile = require("utile")
 	, jsonld = require("jsonld").promises()
 	, uuid = require("node-uuid")
 	, joinPath = require("./joinPath.js")
+	, assert = require("assert")
 ;
 
 var TypeWrapper = module.exports = function TypeWrapper(id, app){
@@ -21,6 +22,7 @@ TypeWrapper$.frame = function(framing){
 	if(!framing){
 		return this.app.framings[id] || {};
 	}else{
+		assert(typeof framing == "object", "Frame must be object not" + (typeof framing) + "for "+ this.id);
 		var p;
 		this.hasFrame = true;
 		if(p = this.app.framings[id]){
@@ -74,9 +76,12 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 	var T = this.app.type(basePackage["@id"])
 		id = "";
 
+	var sr = basePackage.subResourceOf
 
-	if(!basePackage.subResourceOf){
+	if(!sr){
 		throw new Error(basePackage["@id"] + " is subResource of nothing!")
+	}else if(typeof sr === "object" && sr.length > 1){
+		throw new Error(basePackage["@id"] + " is subResource of different things! " + sr)
 	}else{
 		var np, p = this.app.type(basePackage.subResourceOf).package;
 		while(p && p["@id"] != this.app.rootPackage["@id"]){
@@ -184,6 +189,13 @@ TypeWrapper$.__defineGetter__("basePackage", function(){
 	return getBaseType(this.app, this.package)
 })
 
+TypeWrapper$.all = function(handler){
+	var self = this;
+	methods.forEach(function(m){
+		self[m](handler);
+	});
+	return this;
+};
 
 methods.forEach(function(m){
 	TypeWrapper$[m] = function(handler){
