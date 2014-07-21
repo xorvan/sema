@@ -391,7 +391,7 @@ HTTP.prototype = {
 	request: function(req){
 		if(!req.entity) delete req.entity;
 		req.mime = req.entity ? (req.mime || "application/json") : "text/plain";
-		req.path = this.app.ns.resolve(req.path);
+		req.path = this.app.ns.resolve(encodeURI(req.path));
 		if(!req.headers) req.headers = {};
 		var Resource = this.Resource;
 		//
