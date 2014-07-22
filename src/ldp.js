@@ -42,14 +42,16 @@ var ldp = module.exports = function(app){
 
 	app.type("ldp:Resource")
 		.get(function *(next){
-			var path = decodeURI(this.path)
-			var pkg = this.rdf.Type.package;
+			var pkg = this.rdf.Type.package, path = this.path, dbr;
 
 			debug("Getting LDP Resource, package", path, pkg);
-			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
+			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : dbr = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
 			debug("Getting LDP Resource, resource", resource);
 			this.body = resource.length ? this.body = yield new this.rdf.Type(resource, path) : this.body = yield new this.rdf.Type(path);
 			debug("Getting LDP Resource, body", this.body);
+			if(dbr && dbr.length === 0 ){
+				this.status = 404;
+			}
 
 			yield next;
 
@@ -155,6 +157,7 @@ var ldp = module.exports = function(app){
 				this.set("Location", "?"+ querystring.stringify(query));
 				this.status = 303;
 			}else{
+				this.status = 200;
 				var pageSize = 10,  page = this.query.page * 1, offset = (page - 1) * pageSize;
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
 
@@ -374,6 +377,7 @@ Resource$.process = co(function *(graph, id){
 		}
 	}else{
 		types = yield this.type();
+		if(!id) id = "_:sema_new"
 		graph = {"@type": types, "@id": id};
 	}
 	debug("getting frame for", types);
@@ -382,6 +386,7 @@ Resource$.process = co(function *(graph, id){
 	frame["@type"] = this.id;
 	if(this.app.ns.vocab) frame["@context"]["@vocab"] = this.app.ns.vocab;
 	this._frame = frame;
+	debug("Framing Resource", graph)
 	debug("Framing Resource using", frame)
 	var framed = yield jsonld.frame(graph, frame);
 	debug("Framed Resource", framed)

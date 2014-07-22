@@ -157,6 +157,10 @@ Application$.use = function(mw){
 		this.http.interceptors = this.http.interceptors.concat(mw.http.interceptors);
 
 		mw.env = this.env;
+		mw.getPackage = mw.getPackage.bind(this);
+		mw.__defineGetter__("rootPackage", function(){
+			return this.rootPackage;
+		}.bind(this))
 
 	}else{
 		return koa.prototype.use.call(this, mw);

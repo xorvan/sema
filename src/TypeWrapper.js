@@ -67,7 +67,7 @@ TypeWrapper$.slugger = function *(resource, proposed){
 }
 
 TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
-	debug("Identify %s, %s", resource, this.id)
+	debug("Identify %s", this.id, resource)
 	var basePackage = this.basePackage;
 	if(!basePackage){
 		throw new Error("No Base Package found for " + this.id+"! identifying "+ JSON.stringify(resource));
