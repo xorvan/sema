@@ -42,7 +42,7 @@ var ldp = module.exports = function(app){
 
 	app.type("ldp:Resource")
 		.get(function *(next){
-			var pkg = this.rdf.Type.package, path = this.path, dbr;
+			var pkg = this.rdf.Type.package, path = decodeURI(this.path), dbr;
 
 			debug("Getting LDP Resource, package", path, pkg);
 			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : dbr = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
@@ -261,8 +261,9 @@ var ldp = module.exports = function(app){
 						var ct = res["@type"] instanceof Array ? res["@type"] : [res["@type"]]
 						res["@type"] = ct.concat(types);
 					}
-					res["@context"] = app.getFrame(types)["@context"];
+					res["@context"] = app.getFrame(res["@type"])["@context"];
 					res["@context"]["@base"] = app.ns.resolve(this.path)
+					debug("Posted was json context added ", res)
 				}
 
 				if(p.isMemberOfRelation){
@@ -281,6 +282,7 @@ var ldp = module.exports = function(app){
 
 				yield next;
 
+				res = this.request.body;
 				var id = yield res.$identify(slug);
 				res["@id"] = app.ns.resolve(id);
 
@@ -356,12 +358,15 @@ Resource$.process = co(function *(graph, id){
 		debug("Expanded Resource graph", graph);
 
 		for(var i=0; i< graph.length; i++){
-			if(graph[i]["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"]){
-				graph[i]["@type"] = graph[i]["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"].map(function(t){return t["@id"]});
-				delete graph[i]["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"];
+			var g = graph[i];
+			if(!g["@type"])
+				g["@type"] = [];
+			if(g["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"]){
+				g["@type"] = g["@type"].concat(g["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"].map(function(t){return t["@id"]}));
+				delete g["http://www.w3.org/1999/02/22-rdf-syntax-ns#type"];
 			}
-			if(graph[i]["@id"] == id){
-				types = graph[i]["@type"] = graph[i]["@type"] ? graph[i]["@type"].concat(yield this.type()) : yield this.type();
+			if(g["@id"] == id){
+				types = g["@type"] = g["@type"].concat(yield this.type());
 				break;
 			}
 		}

@@ -73,7 +73,7 @@ var Application = module.exports = function Application(ontology){
 	this.db = new GraphStoreClient(this.env.sparqlEndpoint, this.env.graphStoreEndpoint);
 
 	this.ns = this.db.ns;
-	this.ns.base = utile.format("http://%s", this.env.host);
+	this.ns.base = this.env.host; //utile.format("http://%s", this.env.host);
 
 	this.ns.register("sema", "http://www.xorvan.com/ns/sema#");
 
@@ -396,6 +396,12 @@ HTTP.prototype = {
 		if(!req.entity) delete req.entity;
 		req.mime = req.entity ? (req.mime || "application/json") : "text/plain";
 		req.path = this.app.ns.resolve(encodeURI(req.path));
+
+		if(this.app.env.accessHost){
+			var rx = new RegExp("^"+this.app.env.host);
+			req.path = req.path.replace(rx, this.app.env.accessHost);
+		}
+
 		if(!req.headers) req.headers = {};
 		var Resource = this.Resource;
 		//
