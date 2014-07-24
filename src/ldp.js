@@ -254,7 +254,7 @@ var ldp = module.exports = function(app){
 				debug("Posted RDFSource: ", res)
 
 				res["@id"] = app.ns.resolve("new");
-				if(this.is('application/json')){
+				if(this.is('application/json') && !res["@context"]){
 					if(!res["@type"]){
 						res["@type"] = types;
 					}else{
