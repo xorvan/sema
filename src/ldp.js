@@ -416,7 +416,7 @@ for (var name in actions){ (function(name, action){
 	Resource$["$" + name] = thunkify(co(function *(params, data) {
 		var app = this.constructor.app;
 
-		if(!data && (typeof params != "string") && !params.rel ){
+		if(!data && (typeof params != "string") && (!params || !params.rel) ){
 			data = params;
 			params = {rel: "self"};
 		}

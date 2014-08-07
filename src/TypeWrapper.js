@@ -141,6 +141,14 @@ TypeWrapper$.type = function(){
 	return deferred.promise;
 }
 
+function toArray(){
+	var context = this["@context"];
+	return this["@set"].map(function(item){
+		if(context) item["@context"] = context;
+		return item
+	});
+}
+
 TypeWrapper$.query = thunkify(co(function *(qs, bindings){
 	var res = yield this.app.db.query(qs, bindings);
 	var types = yield this.type();
@@ -149,6 +157,7 @@ TypeWrapper$.query = thunkify(co(function *(qs, bindings){
 	var framed = yield jsonld.frame(res, frame);
 	framed["@set"] = framed["@graph"];
 	delete framed["@graph"];
+	// framed.$toArray = toArray.bind(framed);
 	return framed;
 }))
 
