@@ -125,8 +125,10 @@ var Application$ = Application.prototype;
 
 Application$.__proto__ = utile.mixin(koa.prototype, EventEmitter2.prototype);
 
+Application$.__SEMA_APPLICATION = true
+
 Application$.use = function(mw){
-	if(typeof mw == "object" && mw instanceof Application){
+	if(typeof mw == "object" && mw.__SEMA_APPLICATION){
 		debug("Using Sema Application ...");
 		this._modules.push(mw);
 
