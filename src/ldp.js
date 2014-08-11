@@ -91,14 +91,14 @@ var ldp = module.exports = function(app){
 			debug("Deleteing Resource Current", this.path, this.body)
 
 			this.sparql = {
-				update: "DELETE DATA { ?resource }",
+				update: "DELETE WHERE { ?resource }",
 				params: {}
 			}
 
 			yield next;
 
 			var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
-			this.sparql.params.resource = triples;
+			this.sparql.params.resource = triples.replace(/_:b/g, "?b");
 
 			yield app.db.update(this.sparql.update, this.sparql.params)
 
