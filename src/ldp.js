@@ -215,6 +215,8 @@ var ldp = module.exports = function(app){
 					hasMemberRelation: package.hasMemberRelation.iri()
 				});
 
+				this.body = yield new this.rdf.Type(this.body);
+				
 				debug("Container Get Resource", this.body)
 				yield next;
 			}
@@ -238,7 +240,7 @@ var ldp = module.exports = function(app){
 				res = yield new T("new");
 				res.value = yield getRawBody(this.req, {
 			    length: this.length,
-			    limit: '1mb',
+			    limit: '100mb',
 			    encoding: this.charset
 			  });
 
