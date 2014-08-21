@@ -128,18 +128,16 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 
 }))
 
-TypeWrapper$.type = function(){
+TypeWrapper$.type = thunkify(co(function *(){
 	if(this._types){
-		return Q(this._types);
+		return this._types;
 	}
-	var deferred = Q.defer();
-	co(function *(){
-		var types = this._types = (yield this.app.db.query("select ?t (count(?m) as ?d) where {?p rdfs:subClassOf ?m. ?m rdfs:subClassOf ?t.} group by ?t order by asc(?d)", {p:this.id.iri()}))
-			.map(function(t){return t.t.value});
-		return types;
-	}).call(this, deferred.makeNodeResolver());
-	return deferred.promise;
-}
+
+	var types = this._types = (yield this.app.db.query("select ?t (count(?m) as ?d) where {?p rdfs:subClassOf ?m. ?m rdfs:subClassOf ?t.} group by ?t order by asc(?d)", {p:this.id.iri()}))
+		.map(function(t){return t.t.value});
+
+	return types;
+}));
 
 function toArray(){
 	var context = this["@context"];

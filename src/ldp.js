@@ -55,11 +55,11 @@ var ldp = module.exports = function(app){
 
 			yield next;
 
-			//TODO: implementing ldp:RDFSource
-			if(!this.body._readableState){
+			if(this.isRDFSource){
 				this.body = addSubResources(pkg, path, this.body)
 				this.body = yield new this.rdf.Type(this.body);
 				var accepted;
+				debug("Checking Accept Type")
 				switch(accepted = this.accepts(["application/ld+json", "text/plain", "application/nquads", "text/n3", "text/turtle", "application/json"])){
 					case "application/ld+json":
 						this.set("Content-Type", "application/ld+json");
