@@ -270,10 +270,11 @@ Application$.init = co(function *(rootPackageId){
 					console.log("Ontology is the same!")
 				}else{
 					console.log("Ontology has been changed!", prevOntology);
-					fs.writeFileSync(".loadedOntology.ttl", ontology);
-
 					var res = yield this.db.update("DELETE WHERE{ ?prevOntology } ; INSERT DATA{ ?ontology }", {prevOntology:prevOntology.toString().replace(/_:b/g, "?b"), ontology: ontology});
 					console.log("Ontology has been pushed to DB!", res)
+
+					fs.writeFileSync(".loadedOntology.ttl", ontology);
+					console.log(".loadedOntology.ttl updated!", res)
 				}
 			}else{
 				console.log("Loading ontology for the first time!");
