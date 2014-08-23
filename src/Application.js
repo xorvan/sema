@@ -374,6 +374,7 @@ Application$.init = co(function *(rootPackageId){
 });
 
 Application$.getPackage = function(id){
+	assert(typeof id == "string", "Package ID must be a string, provided: " + id)
 	var r = false, id = this.ns.resolve(id);
 	for(var i=0; i< this.packages["@graph"].length; i++){
 		if(id == this.packages["@graph"][i]["@id"]){

@@ -11,7 +11,8 @@ var jsonld = require("jsonld").promises()
 	, joinPath = require("./joinPath.js")
 	, getRawBody = require('raw-body')
 	, fs = require('co-fs')
-	, send = require('koa-send');
+	, send = require('koa-send')
+	,	uuid = require("node-uuid")
 ;
 
 function flatten(framed, id){
@@ -216,7 +217,7 @@ var ldp = module.exports = function(app){
 				});
 
 				this.body = yield new this.rdf.Type(this.body);
-				
+
 				debug("Container Get Resource", this.body)
 				yield next;
 			}
@@ -287,6 +288,7 @@ var ldp = module.exports = function(app){
 				res = this.request.body;
 				var id = yield res.$identify(slug);
 				res["@id"] = app.ns.resolve(id);
+				console.log("adding res", JSON.stringify(res))
 
 				var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
 				this.sparql.params.newResource = triples;
@@ -341,21 +343,28 @@ Resource$.$slug = function(proposed){
 
 
 Resource$.process = co(function *(graph, id){
-	var types;
+	var types, frame;
 	if(typeof graph == "string"){
 		id = this.app.ns.resolve(graph);
 		graph = undefined;
 	}
 	if(graph){
+		var newId;
 		var id = id && this.app.ns.resolve(id) || graph["@id"];
-		if(!id)
-			throw new Error("No id specified for " + JSON.stringify(graph));
-		if(!graph["@context"] || !graph["@context"]["@base"]){
-			if(!graph["@context"]) graph["@context"] = {};
+		if(!id){
+			graph["@id"] = id = newId = "urn:uuid:" + uuid.v4();
+		}
+
+		if(graph.length === undefined && (!graph["@context"] || !graph["@context"]["@base"])){
+			if(!graph["@context"]){
+				types = yield this.type();
+				frame = this.app.getFrame(types);
+				graph["@context"] = frame["@context"] || {};
+			}
 
 			graph["@context"]["@base"] = this.app.ns.base;
 		}
-		debug("Processing Resource graph");
+		debug("Processing Resource graph", graph);
 		graph = yield jsonld.expand(graph);
 		debug("Expanded Resource graph", graph);
 
@@ -384,11 +393,13 @@ Resource$.process = co(function *(graph, id){
 		}
 	}else{
 		types = yield this.type();
-		if(!id) id = "_:sema_new"
+		if(!id){
+			id = newId = "urn:uuid:" + uuid.v4();
+		}
 		graph = {"@type": types, "@id": id};
 	}
 	debug("getting frame for", types);
-	var frame = this.app.getFrame(types)
+	frame = frame || this.app.getFrame(types)
 	// frame["@context"]["@base"] = id;
 	frame["@type"] = this.id;
 	if(this.app.ns.vocab) frame["@context"]["@vocab"] = this.app.ns.vocab;
@@ -398,6 +409,9 @@ Resource$.process = co(function *(graph, id){
 	var framed = yield jsonld.frame(graph, frame);
 	debug("Framed Resource", framed)
 	var resource = flatten(framed, id);
+	if(resource["@id"] == newId){
+		delete resource["@id"];
+	}
 	resource.__proto__ = this.__proto__;
 	if(~types.indexOf(this.app.ns.resolve("ldp:Container"))){
 		resource.__proto__.__proto__ = Container$;
@@ -447,14 +461,32 @@ for (var name in actions){ (function(name, action){
 			httpConfig.path = rel[0]["@id"];
 		}
 
-		if(data) httpConfig.data = data;
+		if(data) httpConfig.entity = data;
 
-		debug("Requesting", httpConfig);
+		debug("Requesting", httpConfig, JSON.stringify(data));
 		return yield app.http.request(httpConfig);
 
 	}));
 })(name, actions[name]) }
 
+Resource$.$addReverse = function(rel, res){
+	if(!this["@reverse"]){
+		this["@reverse"] = {};
+	}
+
+	if(!this["@reverse"][rel]){
+		this["@reverse"][rel] = [];
+	}else if(this["@reverse"][rel].length === undefined){
+		this["@reverse"][rel] = [this["@reverse"][rel]];
+	}
+
+	if(res.length === undefined){
+		this["@reverse"][rel].push(res);
+	}else{
+		this["@reverse"][rel] = this["@reverse"][rel].concat(res);
+	}
+
+}
 
 
 ldp.Container = function (app, graph, id){

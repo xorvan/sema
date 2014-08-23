@@ -167,7 +167,7 @@ function getBaseType(app, pkg){
 	if(!packages)
 		return pkg;
 
-	for(var i = 1; i <= packages.length; i++){
+	for(var i = 0; i < packages.length; i++){
 		var pkg = app.getPackage(packages[i]);
 		if(pkg.pathTemplate) return pkg;
 	}
