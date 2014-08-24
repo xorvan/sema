@@ -85,10 +85,10 @@ var ldp = module.exports = function(app){
 		})
 
 		.delete(function *(next){
-			var path = decodeURI(this.path)
+			var pkg = this.rdf.Type.package, path = decodeURI(this.path), dbr;
 
-			var res = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
-			this.body = yield new this.rdf.Type(res, path)
+			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : dbr = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
+			this.body = yield new this.rdf.Type(resource, path)
 			debug("Deleteing Resource Current", this.path, this.body)
 
 			this.sparql = {
@@ -98,43 +98,50 @@ var ldp = module.exports = function(app){
 
 			yield next;
 
-			var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
-			this.sparql.params.resource = triples.replace(/_:b/g, "?b");
+			if(dbr){
+				var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
+				this.sparql.params.resource = triples.replace(/_:b/g, "?b");
 
-			yield app.db.update(this.sparql.update, this.sparql.params)
+				yield app.db.update(this.sparql.update, this.sparql.params)
 
-			this.status = 204;
+				this.status = 204;
+			}
+
 		})
 
 		.put(function *(next){
-			var path = decodeURI(this.path)
+			var pkg = this.rdf.Type.package, path = decodeURI(this.path), dbr;
+
 			var newRes = this.request.body;
 			newRes["@id"] = path;
 			this.request.body = yield new this.rdf.Type(newRes, path)
 			debug("Putting Resource Requested", this.path, path)
 
-			var res = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
-			this.body = yield new this.rdf.Type(res, path)
+			var resource = pkg.storageType == 'http://www.xorvan.com/ns/sema#NoStorage' ? {"@id": path} : dbr = yield app.db.query("describe ?resource {hint:Query hint:describeMode \"CBD\"}", {resource: path.iri()});
+
+			this.body = yield new this.rdf.Type(resource, path)
 			debug("Putting Resource Current", this.path, this.body)
 
 			this.sparql = {
-				update: "DELETE { ?resource } INSERT{ ?newResource } WHERE {}",
+				update: "DELETE { ?resource } INSERT{ ?newResource } WHERE { ?resource }",
 				params: {}
 			}
 
 			yield next;
 
-			debug("Putting Resource New", this.url, this.request.body);
+			if(dbr){
+				debug("Putting Resource New", this.url, this.request.body);
 
-			var triples = yield jsonld.toRDF(this.request.body, {format: 'application/nquads'});
-			this.sparql.params.newResource = triples;
+				var triples = yield jsonld.toRDF(this.request.body, {format: 'application/nquads'});
+				this.sparql.params.newResource = triples;
 
-			var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
-			this.sparql.params.resource = triples;
+				var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
+				this.sparql.params.resource = triples.replace(/_:b/g, "?b");
 
-			yield app.db.update(this.sparql.update, this.sparql.params)
+				yield app.db.update(this.sparql.update, this.sparql.params)
 
-			this.status = 204;
+				this.status = 204;
+			}
 		})
 
 		.frame({
