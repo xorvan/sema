@@ -295,7 +295,7 @@ var ldp = module.exports = function(app){
 				res = this.request.body;
 				var id = yield res.$identify(slug);
 				res["@id"] = app.ns.resolve(id);
-				console.log("adding res", JSON.stringify(res))
+				debug("Inserting resource to DB", JSON.stringify(res))
 
 				var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
 				this.sparql.params.newResource = triples;

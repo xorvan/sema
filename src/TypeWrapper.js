@@ -112,13 +112,13 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 
 		if(basePackage.pathTemplate == "{slug}"){
 			var ST = getSlugType(this.app, T);
-			console.log("slug type is", ST.id)
+			debug("slug type is", ST.id)
 			var slugger = ST.slug(resource, proposed);
 			do{
 				var slug = slugger.next();
 				var r = "/" + joinPath(id, slug.value);
 				var found = yield app.db.query("ASK {?id ?s ?p}", {id: r.iri()});
-				console.log("found", found, slug)
+				debug("found", found, slug)
 			}while(found)
 			return r;
 		}else{

@@ -77,6 +77,7 @@ var Application = module.exports = function Application(ontology){
 
 	this.ns.register("sema", "http://www.xorvan.com/ns/sema#");
 
+	this._configurators = [];
 
 	//Loading Ontology
 	if(typeof ontology == "string"){
@@ -163,6 +164,8 @@ Application$.use = function(mw){
 		mw.__defineGetter__("rootPackage", function(){
 			return this.rootPackage;
 		}.bind(this))
+
+		mw.configure();
 
 	}else{
 		return koa.prototype.use.call(this, mw);
@@ -385,7 +388,16 @@ Application$.getPackage = function(id){
 	return r;
 }
 
-
+Application$.configure = function(configurator){
+	if(configurator){
+		this._configurators.push(configurator)
+	}else{
+		debug("running configurators", this._configurators)
+		for(var i = 0; i < this._configurators.length; i++){
+			this._configurators[i].apply(this);
+		}
+	}
+}
 
 var Interceptor = require('rest/interceptor');
 
