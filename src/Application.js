@@ -36,9 +36,11 @@ require("rest/mime/registry").register("application/ld+json", require("rest/mime
 var locationInterceptor = require("rest/interceptor")({
 	success: function (response, config, client) {
 		if (response.headers && response.headers.Location) {
+			var redirectPath = url.resolve(response.request.path, response.headers.Location);
+			debug("Location Interceptor, Redirecting", response.request.path, response.headers.Location, redirectPath)
 			return (config.client || (response.request && response.request.originator) || client.skip())({
 				method: 'GET',
-				path: url.resolve(response.request.path, response.headers.Location)
+				path: redirectPath
 			});
 		}
 		return response;

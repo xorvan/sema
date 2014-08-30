@@ -8,6 +8,7 @@ var utile = require("utile")
 	, uuid = require("node-uuid")
 	, joinPath = require("./joinPath.js")
 	, assert = require("assert")
+	, url = require("url")
 ;
 
 var TypeWrapper = module.exports = function TypeWrapper(id, app){
@@ -110,6 +111,9 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 				p = this.app.type(p.subResourceOf).package;
 			}
 		}
+
+		var id = url.parse(id).path;
+		if(id[0] != "/") id = "/" + id;
 
 		if(basePackage.pathTemplate == "{slug}"){
 			var ST = getSlugType(this.app, T);
