@@ -89,7 +89,7 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 
 			//TODO: check container template container resource template with occured {slug}
 
-			if(p.containerResourceTemplate){
+			if(p.membershipResourceTemplate){
 				np = p;
 			}
 
@@ -99,6 +99,7 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 					if(!resource[np.isMemberOfRelation]){
 						throw new Error("isMemberOfRelation, " + np.isMemberOfRelation + " ,not found to identify " + JSON.stringify(resource))
 					}
+					debug("joining", resource[np.isMemberOfRelation]["@id"], id)
 					id = joinPath(resource[np.isMemberOfRelation]["@id"], id)
 					p = false;
 				}else{
@@ -116,13 +117,15 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 			var slugger = ST.slug(resource, proposed);
 			do{
 				var slug = slugger.next();
-				var r = "/" + joinPath(id, slug.value);
+				debug("joining slug ", id, slug.value)
+				var r = joinPath(id, slug.value);
+				debug("final id", id, slug.value)
 				var found = yield app.db.query("ASK {?id ?s ?p}", {id: r.iri()});
 				debug("found", found, slug)
 			}while(found)
 			return r;
 		}else{
-			return "/" + joinPath(id, basePackage.pathTemplate);
+			return joinPath(id, basePackage.pathTemplate);
 		}
 	}
 

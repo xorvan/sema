@@ -123,7 +123,7 @@ var ldp = module.exports = function(app){
 			debug("Putting Resource Current", this.path, this.body)
 
 			this.sparql = {
-				update: "DELETE { ?resource } INSERT{ ?newResource } WHERE { ?resource }",
+				update: "DELETE { ?resource } INSERT{ ?newResource } WHERE { ?resolver }",
 				params: {}
 			}
 
@@ -137,6 +137,11 @@ var ldp = module.exports = function(app){
 
 				var triples = yield jsonld.toRDF(this.body, {format: 'application/nquads'});
 				this.sparql.params.resource = triples.replace(/_:b/g, "?b");
+
+				this.sparql.params.resolver = this.sparql.params.resource
+					.split("\n")
+					.filter(function(triple){return triple.indexOf("?b") != -1 })
+					.join("\n")
 
 				yield app.db.update(this.sparql.update, this.sparql.params)
 
@@ -408,6 +413,7 @@ Resource$.process = co(function *(graph, id){
 	debug("getting frame for", types);
 	frame = frame || this.app.getFrame(types)
 	// frame["@context"]["@base"] = id;
+	delete frame["@context"]["@base"];
 	frame["@type"] = this.id;
 	if(this.app.ns.vocab) frame["@context"]["@vocab"] = this.app.ns.vocab;
 	this._frame = frame;
