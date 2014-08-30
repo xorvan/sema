@@ -175,22 +175,28 @@ var ldp = module.exports = function(app){
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
 
 				if(package.membershipResourceTemplate){
-					package.membershipResource = decodeURI(app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate)));
+					var membershipResource = decodeURI(app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate)));
+				}else{
+					var membershipResource = app.ns.resolve(package.membershipResource || "");
 				}
 
 				var qs;
 				if(package.isMemberOfRelation){
 					qs = "select (count(?s) as ?count) { ?s ?isMemberOfRelation ?membershipResource}";
+					var isMemberOfRelation = app.ns.resolve(package.isMemberOfRelation),
+						hasMemberRelation = "";
+
 				} else{
 					qs = "select (count(?s) as ?count) { ?membershipResource ?hasMemberRelation ?s}";
+					var  hasMemberRelation = app.ns.resolve(package.hasMemberRelation),
+						isMemberOfRelation = "";
+
 				}
 
-				package.isMemberOfRelation = package.isMemberOfRelation || "";
-				package.hasMemberRelation = package.hasMemberRelation || "";
 				var r = yield app.db.query(qs, {
-					membershipResource: package.membershipResource.iri(),
-					isMemberOfRelation: package.isMemberOfRelation.iri(),
-					hasMemberRelation: package.hasMemberRelation.iri()
+					membershipResource: membershipResource.iri(),
+					isMemberOfRelation: isMemberOfRelation.iri(),
+					hasMemberRelation: hasMemberRelation.iri()
 				});
 
 				var count = r[0].count.value * 1;
@@ -223,9 +229,9 @@ var ldp = module.exports = function(app){
 				this.body["$members"] = yield app.db.query(qs, {
 					limit: pageSize,
 					offset: offset,
-					membershipResource: package.membershipResource.iri(),
-					isMemberOfRelation: package.isMemberOfRelation.iri(),
-					hasMemberRelation: package.hasMemberRelation.iri()
+					membershipResource: membershipResource.iri(),
+					isMemberOfRelation: isMemberOfRelation.iri(),
+					hasMemberRelation: hasMemberRelation.iri()
 				});
 
 				this.body = yield new this.rdf.Type(this.body);
