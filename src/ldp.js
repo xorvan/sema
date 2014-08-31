@@ -218,11 +218,11 @@ var ldp = module.exports = function(app){
 					qs = "construct {?s ?p ?o} { {select ?s { ?membershipResource ?hasMemberRelation ?s} limit ?limit offset ?offset} ?s ?p ?o}";
 				}
 
-				this.body["ldp:membershipResource"] = package.membershipResource;
+				this.body["ldp:membershipResource"] = membershipResource;
 				if(package.isMemberOfRelation){
-					this.body["ldp:isMemberOfRelation"] = package.isMemberOfRelation;
+					this.body["ldp:isMemberOfRelation"] = isMemberOfRelation;
 				}else{
-					this.body["ldp:hasMemberRelation"] = package.hasMemberRelation;
+					this.body["ldp:hasMemberRelation"] = hasMemberRelation;
 				}
 				this.body["ldp:insertedContentRelation"] = package.insertedContentRelation;
 

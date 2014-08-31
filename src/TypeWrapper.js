@@ -108,6 +108,9 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 				}
 			}else{
 				id = joinPath(p.pathTemplate, id)
+				if(typeof p.subResourceOf != "string"){
+					throw new Error("Invalid subResourceOf for package " + p["@id"]+" : " + JSON.stringify(p.subResourceOf))
+				}
 				p = this.app.type(p.subResourceOf).package;
 			}
 		}
