@@ -32,7 +32,10 @@ function addSubResources(pkg, path, res){
 	if(pkg.hasSubResource){
 		if(!res) res = {};
 		pkg.hasSubResource.forEach(function(sr){
-			res[sr.subResourceRelation] = {"@id": app.ns.resolve(joinPath(path, sr.pathTemplate))};
+			if(!~sr.pathTemplate.indexOf("{slug}")){
+				debug("Adding Sub Resource", path, sr.pathTemplate, sr)
+				res[sr.subResourceRelation] = {"@id": app.ns.resolve(joinPath(path, sr.pathTemplate))};
+			}
 		}.bind(this));
 	}
 	debug("Adding Sub Resources", pkg, path, res)
@@ -274,14 +277,15 @@ var ldp = module.exports = function(app){
 			}else{
 				debug("Posted RDFSource: ", res)
 
-				res["@id"] = app.ns.resolve("new");
+				res["@id"] = url.resolve(app.ns.resolve(decodeURI(this.path)), "new");
+				if(!res["@type"]){
+					res["@type"] = types;
+				}else{
+					var ct = res["@type"] instanceof Array ? res["@type"] : [res["@type"]]
+					res["@type"] = ct.concat(types);
+				}
+				
 				if(this.is('application/json') && !res["@context"]){
-					if(!res["@type"]){
-						res["@type"] = types;
-					}else{
-						var ct = res["@type"] instanceof Array ? res["@type"] : [res["@type"]]
-						res["@type"] = ct.concat(types);
-					}
 					res["@context"] = app.getFrame(res["@type"])["@context"];
 					res["@context"]["@base"] = app.ns.resolve(this.path)
 					debug("Posted was json context added ", res)

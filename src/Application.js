@@ -350,17 +350,19 @@ Application$.init = co(function *(rootPackageId){
 			for(var i=0; i < pkg.hasSubResource.length; i++){
 				if(pkg.hasSubResource[i]["@id"] == pkg["@id"]){
 					debug("Recursion detected changing path ...", pkg["@id"]);
-					pathTemplate = "(" + pkg.pathTemplate + "/?)*";
+					var tail = pkg.pathTemplate[pkg.pathTemplate.length - 1] == "/" ? "/" : "";
+					pathTemplate = "(" + pkg.pathTemplate + tail + "/?)+" + tail;
 					break;
 				}
 			}
 
 		}
 
-		var path = joinPath(base || "/", pathTemplate || "").replace(/{slug}/g, "([^/]+)");
+		var path = joinPath(base || "/", pathTemplate || "");
 
 		if(pkg.hasSubResource){
 			for(var i = 0; i < pkg.hasSubResource.length; i++){
+				pkg.hasSubResource[i] = self.getPackage(pkg.hasSubResource[i]["@id"]);
 				if(pkg.hasSubResource[i]["@id"] == pkg["@id"]){
 					debug("Recursion detected, ignoring ...", pkg["@id"]);
 				}else{
@@ -368,7 +370,12 @@ Application$.init = co(function *(rootPackageId){
 				}
 			}
 		}
-		self.typeMaps.push({regex: new RegExp("^" + path + "$"), type: pkg["@id"]});
+		if(~path.indexOf("{slug}")){
+			self.typeMaps.push({regex: new RegExp("^" + path.replace(/{slug}/g, "([^/]+)") + "$"), type: pkg["@id"]});
+		}else{
+			self.typeMaps.unshift({regex: new RegExp("^" + path.replace(/{slug}/g, "([^/]+)") + "$"), type: pkg["@id"]});
+		}
+
 		// self.typeMaps.push({regex: new RegExp("^" + path + (~pkg["@type"].indexOf('ldpt:Container') ? "/$" : "$")), type: pkg["@id"]});
 
 	}

@@ -82,26 +82,52 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 	if(!sr){
 		throw new Error(basePackage["@id"] + " is subResource of nothing!")
 	}else if(typeof sr === "object" && sr.length > 1){
-		throw new Error(basePackage["@id"] + " is subResource of different things! " + sr)
+
+		if(~sr.indexOf(basePackage["@id"])){
+			debug("Recursive Type detected", basePackage["@id"]);
+			id = resource["@id"] ? url.resolve(resource["@id"], "./") : "./";
+		}else{
+			throw new Error(basePackage["@id"] + " is subResource of different things! " + sr)
+		}
 	}else{
 		var np, p = this.app.type(basePackage.subResourceOf).package;
 		while(p && p["@id"] != this.app.rootPackage["@id"]){
+			console.log("checking...", p["@id"], np && np["@id"], id)
 			p = this.app.type(getBaseType(this.app, p )["@id"]).package;
 
 			//TODO: check container template container resource template with occured {slug}
 
-			if(p.membershipResourceTemplate){
+			console.log("mrt", p.membershipResourceTemplate)
+			if(p.membershipResourceTemplate && p.membershipResourceTemplate.indexOf("..") == 0){
 				np = p;
 			}
 
-			if(p.pathTemplate == "{slug}"){
+			if(~p.pathTemplate.indexOf("{slug}")){
 				if(np){
+					var moRel = np.isMemberOfRelation == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" ? "@type" : np.isMemberOfRelation;
 					// console.log("slug is reached", id, resource, np.containedByRelation)
-					if(!resource[np.isMemberOfRelation]){
-						throw new Error("isMemberOfRelation, " + np.isMemberOfRelation + " ,not found to identify " + JSON.stringify(resource))
+					if(!resource[moRel]){
+						console.log("p", p);
+						console.log("np", np);
+						throw new Error("isMemberOfRelation, " + moRel + ", not found to identify " + JSON.stringify(resource))
 					}
-					debug("joining", resource[np.isMemberOfRelation]["@id"], id)
-					id = joinPath(resource[np.isMemberOfRelation]["@id"], id)
+					var relRes = resource[moRel]["@id"] || resource[moRel];
+					if(typeof relRes == "object"){
+						var relRess = relRes;
+						relRes = false;
+						for(var i = 0; i < relRess.length ; i++){
+							console.log("checking", i, relRess[i], this.app.ns.base)
+							if(relRess[i].indexOf(this.app.ns.base) == 0){
+								relRes = relRess[i];
+								break;
+							}
+						}
+						if(!relRes){
+							throw new Error("No appropriate relation find for package " + p["@id"]+" : " + JSON.stringify(p.subResourceOf) + ", current id:" + id)
+						}
+					}
+					debug("joining", relRes, id)
+					id = joinPath(relRes, id)
 					p = false;
 				}else{
 					throw new Error("No Container Template found to identify " + JSON.stringify(p))
@@ -109,31 +135,32 @@ TypeWrapper$.identify = thunkify(co(function *(resource, proposed){
 			}else{
 				id = joinPath(p.pathTemplate, id)
 				if(typeof p.subResourceOf != "string"){
-					throw new Error("Invalid subResourceOf for package " + p["@id"]+" : " + JSON.stringify(p.subResourceOf))
+					throw new Error("Invalid subResourceOf for package " + p["@id"]+" : " + JSON.stringify(p.subResourceOf) + ", current id:" + id)
 				}
 				p = this.app.type(p.subResourceOf).package;
 			}
 		}
+	}
 
-		var id = url.parse(id).path;
-		if(id[0] != "/") id = "/" + id;
+	var id = url.parse(id).path;
+	if(id[0] != "/") id = "/" + id;
 
-		if(basePackage.pathTemplate == "{slug}"){
-			var ST = getSlugType(this.app, T);
-			debug("slug type is", ST.id)
-			var slugger = ST.slug(resource, proposed);
-			do{
-				var slug = slugger.next();
-				debug("joining slug ", id, slug.value)
-				var r = joinPath(id, slug.value);
-				debug("final id", id, slug.value)
-				var found = yield app.db.query("ASK {?id ?s ?p}", {id: r.iri()});
-				debug("found", found, slug)
-			}while(found)
-			return r;
-		}else{
-			return joinPath(id, basePackage.pathTemplate);
-		}
+	if(~basePackage.pathTemplate.indexOf("{slug}") ){
+		var ST = getSlugType(this.app, T);
+		debug("slug type is", ST.id)
+		var slugger = ST.slug(resource, proposed);
+		do{
+			var slug = slugger.next();
+			var slugValue = basePackage.pathTemplate.replace("{slug}", slug.value);
+			debug("joining slug ", id, slugValue)
+			var r = joinPath(id, slugValue);
+			debug("final id", id, slugValue)
+			var found = yield this.app.db.query("ASK {?id ?s ?p}", {id: r.iri()});
+			debug("found", found, slug)
+		}while(found)
+		return r;
+	}else{
+		return joinPath(id, basePackage.pathTemplate);
 	}
 
 }))
