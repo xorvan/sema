@@ -11,7 +11,7 @@
     "ldp",
     "koa"
   ],
-  "author": "Inan Idea",
+  "author": "Xorvan",
   "license": "ISC",
   "dependencies": {
     "rdfstore": "~0.8.2",
@@ -35,6 +35,7 @@
     "thunkify": "^2.1.2",
     "url-template": "^2.0.4",
     "debug": "^1.0.3",
-    "assert": "^1.1.1"
+    "assert": "^1.1.1",
+    "n3": "0.2.7"
   }
 }

@@ -183,24 +183,49 @@ var ldp = module.exports = function(app){
 					var membershipResource = app.ns.resolve(package.membershipResource || "");
 				}
 
+				this.sparql = {
+					params: {}
+				}
+
+
 				var qs;
 				if(package.isMemberOfRelation){
-					qs = "select (count(?s) as ?count) { ?s ?isMemberOfRelation ?membershipResource}";
+					this.sparql.count = "select (count(?s) as ?count) { ?s ?isMemberOfRelation ?membershipResource}";
 					var isMemberOfRelation = app.ns.resolve(package.isMemberOfRelation),
 						hasMemberRelation = "";
 
 				} else{
-					qs = "select (count(?s) as ?count) { ?membershipResource ?hasMemberRelation ?s}";
+					this.sparql.count = "select (count(?s) as ?count) { ?membershipResource ?hasMemberRelation ?s}";
 					var  hasMemberRelation = app.ns.resolve(package.hasMemberRelation),
 						isMemberOfRelation = "";
 
 				}
 
-				var r = yield app.db.query(qs, {
+				this.sparql.params = {
 					membershipResource: membershipResource.iri(),
 					isMemberOfRelation: isMemberOfRelation.iri(),
-					hasMemberRelation: hasMemberRelation.iri()
-				});
+					hasMemberRelation: hasMemberRelation.iri(),
+ 					filter: ""
+				};
+
+				var qs;
+				if(package.isMemberOfRelation){
+					this.sparql.query = "construct {?s ?p ?o} { {select ?s { ?s ?isMemberOfRelation ?membershipResource . ?filter} limit ?limit offset ?offset} ?s ?p ?o}";
+				} else{
+					this.sparql.query = "construct {?s ?p ?o} { {select ?s { ?membershipResource ?hasMemberRelation ?s . ?filter} limit ?limit offset ?offset} ?s ?p ?o}";
+				}
+
+				this.body["ldp:membershipResource"] = membershipResource;
+				if(package.isMemberOfRelation){
+					this.body["ldp:isMemberOfRelation"] = isMemberOfRelation;
+				}else{
+					this.body["ldp:hasMemberRelation"] = hasMemberRelation;
+				}
+				this.body["ldp:insertedContentRelation"] = package.insertedContentRelation;
+
+				yield next;
+
+				var r = yield app.db.query(this.sparql.count, this.sparql.params)
 
 				var count = r[0].count.value * 1;
 				this.set("Link", "<http://www.w3.org/ns/ldp/Resource>; rel='type'");
@@ -214,33 +239,15 @@ var ldp = module.exports = function(app){
 					this.set("Link", "<?"+querystring.stringify(np)+">; rel='next'");
 				}
 
-				var qs;
-				if(package.isMemberOfRelation){
-					qs = "construct {?s ?p ?o} { {select ?s { ?s ?isMemberOfRelation ?membershipResource} limit ?limit offset ?offset} ?s ?p ?o}";
-				} else{
-					qs = "construct {?s ?p ?o} { {select ?s { ?membershipResource ?hasMemberRelation ?s} limit ?limit offset ?offset} ?s ?p ?o}";
-				}
+				this.sparql.params.limit = pageSize;
+				this.sparql.params.offset = offset;
 
-				this.body["ldp:membershipResource"] = membershipResource;
-				if(package.isMemberOfRelation){
-					this.body["ldp:isMemberOfRelation"] = isMemberOfRelation;
-				}else{
-					this.body["ldp:hasMemberRelation"] = hasMemberRelation;
-				}
-				this.body["ldp:insertedContentRelation"] = package.insertedContentRelation;
-
-				this.body["$members"] = yield app.db.query(qs, {
-					limit: pageSize,
-					offset: offset,
-					membershipResource: membershipResource.iri(),
-					isMemberOfRelation: isMemberOfRelation.iri(),
-					hasMemberRelation: hasMemberRelation.iri()
-				});
+				this.body["$members"] = yield app.db.query(this.sparql.query, this.sparql.params);
 
 				this.body = yield new this.rdf.Type(this.body);
 
 				debug("Container Get Resource", this.body)
-				yield next;
+
 			}
 		})
 		.post(function *(next){

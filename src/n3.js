@@ -21,7 +21,12 @@ module.exports.parse = function(input, serialization){
 }
 
 var escape = module.exports.escape = function(value){
-  return N3.Util.isUri(value) ? "<"+value+">" : value;
+  if(N3.Util.isLiteral(value)){
+    return '"' + N3.Util.getLiteralValue(value).replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\"/g, '\\"') + '"^^<' + N3.Util.getLiteralType(value) + ">"
+  }else{
+    return N3.Util.isUri(value) ? "<"+value+">" : value;  
+  }  
+  
 }
 
 var tripleMapper = function(t){

@@ -20,6 +20,7 @@ var koa = require("koa")
 	, ldp = require("./ldp.js")
 	, owl = require("./owl.js")
 	, joinPath = require("./joinPath.js")
+	, diff = require("diff")
 ;
 
 
@@ -84,9 +85,16 @@ var Application = module.exports = function Application(ontology){
 	//Loading Ontology
 	if(typeof ontology == "string"){
 		this.ontology = fs.readFileSync(ontology, "utf8");
+	}else if(ontology instanceof Array){
+		this.ontology = "";
+		for(var i = 0; i < ontology.length; i++){
+			var ont = ontology[i];
+			this.ontology += fs.readFileSync(ont, "utf8");
+		};
 	}else{
 		this.ontology = ontology;
 	}
+
 
 	this.typeMaps = [];
 	this.framings = {};
@@ -265,7 +273,7 @@ Application$.init = co(function *(rootPackageId){
 					// console.log("Module " + (i+1) + " ontology loaded!", res);
 				}
 			}
-
+			// ontology = ontology.replace(/\n/, "\\n");
 			debug("Ontology is \n", ontology);
 
 			if(fs.existsSync(".loadedOntology.ttl")){
@@ -274,8 +282,12 @@ Application$.init = co(function *(rootPackageId){
 				if( prevOntology == ontology){
 					console.log("Ontology is the same!")
 				}else{
-					console.log("Ontology has been changed!", prevOntology);
-					var res = yield this.db.update("DELETE WHERE{ ?prevOntology } ; INSERT DATA{ ?ontology }", {prevOntology:prevOntology.toString().replace(/_:b/g, "?b"), ontology: ontology});
+					var diffs = diff.diffLines(prevOntology.toString(), ontology.toString());
+					console.log("Ontology has been changed!", diffs.filter(function(cs){return cs.removed || cs.added}));
+					var res = yield this.db.update("DELETE WHERE{ ?removedOntology } ; INSERT DATA{ ?addedOntology }", {
+						removedOntology: diffs.filter(function(cs){return cs.removed}).map(function(cs){return cs.value}).join("\n").replace(/_:b/g, "?b"), 
+						addedOntology: diffs.filter(function(cs){return cs.added}).map(function(cs){return cs.value}).join("\n")
+					});
 					console.log("Ontology has been pushed to DB!", res)
 
 					fs.writeFileSync(".loadedOntology.ttl", ontology);
