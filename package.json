@@ -23,7 +23,7 @@
     "jsonld": "~0.3.1",
     "co": "~3.1.0",
     "co-fs": "^1.2.0",
-    "koa-body-parser": "~1.1.1",
+    "koa-body-parser": "thomseddon/koa-body-parser",
     "koa-compose": "*",
     "koa-qs": "1.0.0",
     "koa-send": "^1.2.3",
