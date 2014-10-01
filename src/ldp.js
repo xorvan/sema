@@ -336,7 +336,8 @@ var ldp = module.exports = function(app){
 				"ldp:membershipResource": {"@type": "@id"},
 				"ldp:insertedContentRelation": {"@type": "@id"},
 				"$members": {"@id": "ldp:contains", "@container": "@set"}
-			}
+			},
+			"$members": {"@embed": true}
 		})
 
 	;
