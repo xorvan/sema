@@ -217,13 +217,8 @@ var ldp = module.exports = function(app){
 				}else{
 					this.sparql.query += "?membershipResource ?hasMemberRelation ?s ."
 				}
-				if(this.sparql.params.filter.length > 0){
-					this.sparql.query += " ?filter . "
-				}
 				
-				this.sparql.query += "} limit ?limit offset ?offset} ?pattern}";
-
-				this.sparql.params.populate = [];
+				this.sparql.query += " ?filter } limit ?limit offset ?offset} ?pattern}";
 
 				this.body["ldp:membershipResource"] = membershipResource;
 				if(package.isMemberOfRelation){
