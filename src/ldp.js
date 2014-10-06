@@ -205,15 +205,25 @@ var ldp = module.exports = function(app){
 					membershipResource: membershipResource.iri(),
 					isMemberOfRelation: isMemberOfRelation.iri(),
 					hasMemberRelation: hasMemberRelation.iri(),
- 					filter: ""
+ 					filter: "",
+ 					template: "?s ?p ?o",
+ 					pattern: "?s ?p ?o"
 				};
 
 				var qs;
+				this.sparql.query = "construct {?template} { {select ?s { "
 				if(package.isMemberOfRelation){
-					this.sparql.query = "construct {?s ?p ?o} { {select ?s { ?s ?isMemberOfRelation ?membershipResource . ?filter} limit ?limit offset ?offset} ?s ?p ?o}";
-				} else{
-					this.sparql.query = "construct {?s ?p ?o} { {select ?s { ?membershipResource ?hasMemberRelation ?s . ?filter} limit ?limit offset ?offset} ?s ?p ?o}";
+					this.sparql.query += "?s ?isMemberOfRelation ?membershipResource ."
+				}else{
+					this.sparql.query += "?membershipResource ?hasMemberRelation ?s ."
 				}
+				if(this.sparql.params.filter.length > 0){
+					this.sparql.query += " ?filter . "
+				}
+				
+				this.sparql.query += "} limit ?limit offset ?offset} ?pattern}";
+
+				this.sparql.params.populate = [];
 
 				this.body["ldp:membershipResource"] = membershipResource;
 				if(package.isMemberOfRelation){
@@ -242,8 +252,9 @@ var ldp = module.exports = function(app){
 				this.sparql.params.limit = pageSize;
 				this.sparql.params.offset = offset;
 
-				this.body["$members"] = yield app.db.query(this.sparql.query, this.sparql.params);
 
+				var db = this.rdf.Type.package.expectedType ? app.type(this.rdf.Type.package.expectedType) : app.db;
+				this.body["$members"] = yield db.query(this.sparql.query, this.sparql.params);
 				this.body = yield new this.rdf.Type(this.body);
 
 				debug("Container Get Resource", this.body)
