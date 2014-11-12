@@ -21,6 +21,7 @@ var koa = require("koa")
 	, owl = require("./owl.js")
 	, joinPath = require("./joinPath.js")
 	, diff = require("diff")
+	, merge = require("merge")
 ;
 
 
@@ -216,16 +217,12 @@ Application$.getFrame = function(types){
 	}else if(types.length == 1){
 		f = this.framings[types[0]] || {};
 	}else{
-		for(var i = 0; i < types.length; i++){
-			var t, c, r;
-			if( t = this.framings[types[i]]){
-				r = utile.mixin(utile.clone(f), t);
-				if(f["@context"] && t["@context"]){
-					r["@context"] = utile.mixin(utile.clone(f["@context"]), t["@context"]);
-				}
-				f = r;
-			}
-		}
+		var app = this;
+		var args = types.map(function(type){
+			return app.framings[type];
+		})
+		args.unshift(true);
+		f = merge.recursive.apply(merge.recursive, args);
 	}
 	if(!f["@context"])
 		f["@context"] = {};

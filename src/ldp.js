@@ -176,6 +176,9 @@ var ldp = module.exports = function(app){
 				this.status = 200;
 				var pageSize = 10,  page = this.query.page * 1, offset = (page - 1) * pageSize;
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
+				var useDB = this.rdf.Type.package.storageType != 'http://www.xorvan.com/ns/sema#NoStorage';
+
+				console.log("Storage Type", this.rdf.Type.package.storageType)
 
 				if(package.membershipResourceTemplate){
 					var membershipResource = decodeURI(app.ns.resolve(url.resolve(this.path, package.membershipResourceTemplate)));
@@ -249,7 +252,9 @@ var ldp = module.exports = function(app){
 
 
 				var db = this.rdf.Type.package.expectedType ? app.type(this.rdf.Type.package.expectedType) : app.db;
-				this.body["$members"] = yield db.query(this.sparql.query, this.sparql.params);
+				if(useDB){
+					this.body["$members"] = yield db.query(this.sparql.query, this.sparql.params);
+				}
 				this.body = yield new this.rdf.Type(this.body);
 
 				debug("Container Get Resource", this.body)
@@ -261,7 +266,8 @@ var ldp = module.exports = function(app){
 				, slug = this.header.slug
 				, p = this.rdf.Type.package
 				, T = app.type(p.expectedType || app.ns.resolve("owl:Thing"))
-				, types = yield T.type();
+				, types = yield T.type()
+				, useDB = p.storageType != 'http://www.xorvan.com/ns/sema#NoStorage'
 			;
 
 			// Removing spaces and colons from slug
@@ -320,18 +326,20 @@ var ldp = module.exports = function(app){
 
 				yield next;
 
-				res = this.request.body;
-				var id = yield res.$identify(slug);
-				res["@id"] = app.ns.resolve(id);
-				debug("Inserting resource to DB", JSON.stringify(res))
+				if(useDB){
+					res = this.request.body;
+					var id = yield res.$identify(slug);
+					res["@id"] = app.ns.resolve(id);
+					debug("Inserting resource to DB", JSON.stringify(res))
 
-				var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
-				this.sparql.params.newResource = triples;
+					var triples = yield jsonld.toRDF(res, {format: 'application/nquads'});
+					this.sparql.params.newResource = triples;
 
-				yield app.db.update(this.sparql.update, this.sparql.params)
-				// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
-				this.set("Location", encodeURI(id));
-				this.status = 201;
+					yield app.db.update(this.sparql.update, this.sparql.params)
+					// this.body = yield app.db.query("describe ?id", {id: res["@id"].iri()});
+					this.set("Location", encodeURI(id));
+					this.status = 201;
+				}
 			}
 		})
 		.frame({
