@@ -21,7 +21,7 @@
     "diff": "^1.0.8",
     "eventemitter2": "~0.4.13",
     "graph-store-client": "xorvan/graph-store-client",
-    "jsonld": "eafzali/jsonld.js",
+    "jsonld": "^0.3.8",
     "koa": "^0.9.0",
     "koa-body-parser": "thomseddon/koa-body-parser",
     "koa-compose": "*",
