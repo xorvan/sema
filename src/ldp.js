@@ -231,6 +231,9 @@ var ldp = module.exports = function(app){
 				}
 				this.body["ldp:insertedContentRelation"] = package.insertedContentRelation;
 
+				this.sparql.params.limit = pageSize;
+				this.sparql.params.offset = offset;
+
 				yield next;
 
 				var r = yield app.db.query(this.sparql.count, this.sparql.params)
@@ -239,16 +242,14 @@ var ldp = module.exports = function(app){
 				this.set("Link", "<http://www.w3.org/ns/ldp/Resource>; rel='type'");
 				this.set("Link", "<http://www.w3.org/ns/ldp/Page>; rel='type'");
 
-				if(offset >= count){
+				if(this.sparql.params.offset >= count){
 					// return this.status = 404;
-				}else if(offset + pageSize < count){
+				}else if(this.sparql.params.offset + this.sparql.params.limit < count){
 					var np = utile.clone(this.query);
 					np.page ++;
 					this.set("Link", "<?"+querystring.stringify(np)+">; rel='next'");
 				}
 
-				this.sparql.params.limit = pageSize;
-				this.sparql.params.offset = offset;
 
 
 				var db = this.rdf.Type.package.expectedType ? app.type(this.rdf.Type.package.expectedType) : app.db;
