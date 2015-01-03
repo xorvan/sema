@@ -531,8 +531,16 @@ Resource$.$addReverse = function(rel, res){
 	}else{
 		this["@reverse"][rel] = this["@reverse"][rel].concat(res);
 	}
-
 }
+
+Resource$.$is = thunkify(co(function *(type){
+	var app = this.constructor.app;
+
+  var type = app.ns.resolve(type);
+  var expanded = yield jsonld.expand(this);
+  expanded = expanded[0];
+  return expanded["@type"] && !!~expanded["@type"].indexOf(type);
+}));
 
 
 ldp.Container = function (app, graph, id){
