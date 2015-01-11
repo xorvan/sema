@@ -56,12 +56,17 @@ var ldp = module.exports = function(app){
 			if(dbr && dbr.length === 0 ){
 				this.status = 404;
 			}
+			
+			this.link = this.response.header.link = ["<http://www.w3.org/ns/ldp#Resource>; rel='type'"];
 
 			yield next;
 
 			if(this.isRDFSource){
 				this.body = addSubResources(pkg, path, this.body)
 				this.body = yield new this.rdf.Type(this.body);
+
+				this.link.push("<http://www.w3.org/ns/ldp#RDFSource>; rel='type'");
+
 				var accepted;
 				debug("Checking Accept Type")
 				switch(accepted = this.accepts(["application/ld+json", "text/plain", "application/nquads", "text/n3", "text/turtle", "application/json"])){
@@ -80,11 +85,14 @@ var ldp = module.exports = function(app){
 					default:
 						this.set("Content-Type", "application/json");
 						delete this.body["@context"];
-						this.set("Link", '<?context>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"')
+						this.link.push('<?context>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"');
 
 				}
 
 			}
+
+			// otherwise header name will be undefined!!!
+			this.set('Link', this.response.header.link);
 		})
 
 		.delete(function *(next){
@@ -174,7 +182,7 @@ var ldp = module.exports = function(app){
 				this.status = 303;
 			}else{
 				this.status = 200;
-				var pageSize = 10,  page = this.query.page * 1, offset = (page - 1) * pageSize;
+				var pageSize = 20,  page = this.query.page * 1, offset = (page - 1) * pageSize;
 				var package = utile.clone(app.getPackage(this.rdf.Type.id));
 				var useDB = this.rdf.Type.package.storageType != 'http://www.xorvan.com/ns/sema#NoStorage';
 
@@ -231,26 +239,51 @@ var ldp = module.exports = function(app){
 				}
 				this.body["ldp:insertedContentRelation"] = package.insertedContentRelation;
 
-				this.sparql.params.limit = pageSize;
-				this.sparql.params.offset = offset;
+				this.container = {
+					limit: pageSize,
+					offset: offset,
+					count: 0
+				};
 
 				yield next;
 
-				var r = yield app.db.query(this.sparql.count, this.sparql.params)
+				if(useDB){
+					this.sparql.params.limit = this.container.limit;
+					this.sparql.params.offset = this.container.offset;
 
-				var count = r[0].count.value * 1;
-				this.set("Link", "<http://www.w3.org/ns/ldp/Resource>; rel='type'");
-				this.set("Link", "<http://www.w3.org/ns/ldp/Page>; rel='type'");
-
-				if(this.sparql.params.offset >= count){
-					// return this.status = 404;
-				}else if(this.sparql.params.offset + this.sparql.params.limit < count){
-					var np = utile.clone(this.query);
-					np.page ++;
-					this.set("Link", "<?"+querystring.stringify(np)+">; rel='next'");
+					var r = yield app.db.query(this.sparql.count, this.sparql.params)
+					this.container.count = r[0].count.value * 1;
 				}
 
+				var count = this.container.count;
 
+				console.log("ontainer", this.container)
+				if(this.sparql.params.offset >= count){
+					// return this.status = 404;
+				}else if(count > this.container.limit){
+					this.link.push("<http://www.w3.org/ns/ldp#Page>; rel='type'");
+
+					var op = utile.clone(this.query);
+					op.page = 1;
+					this.link.push("<?" + querystring.stringify(op) + ">; rel='first'");
+					op.page = ((count / this.container.limit) | 0) + 1;
+					this.link.push("<?" + querystring.stringify(op) + ">; rel='last'");
+					delete op.page;
+					this.link.push("<?" + querystring.stringify(op) + ">; rel='canonical'");
+
+					if(this.container.offset + this.container.limit < count){
+						var np = utile.clone(this.query);
+						np.page ++;
+						this.link.push("<?" + querystring.stringify(np) + ">; rel='next'");
+					}
+
+					if(this.container.offset != 0){
+						var pp = utile.clone(this.query);
+						pp.page --;
+						this.link.push("<?" + querystring.stringify(pp) + ">; rel='prev'");
+					}
+
+				}
 
 				var db = this.rdf.Type.package.expectedType ? app.type(this.rdf.Type.package.expectedType) : app.db;
 				if(useDB){
@@ -259,7 +292,6 @@ var ldp = module.exports = function(app){
 				this.body = yield new this.rdf.Type(this.body);
 
 				debug("Container Get Resource", this.body)
-
 			}
 		})
 		.post(function *(next){
