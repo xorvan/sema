@@ -282,7 +282,7 @@ Application$.init = co(function *(rootPackageId){
 					var diffs = diff.diffLines(prevOntology.toString(), ontology.toString());
 					console.log("Ontology has been changed!", diffs.filter(function(cs){return cs.removed || cs.added}));
 					var res = yield this.db.update("DELETE WHERE{ ?removedOntology } ; INSERT DATA{ ?addedOntology }", {
-						removedOntology: diffs.filter(function(cs){return cs.removed}).map(function(cs){return cs.value}).join("\n").replace(/_:b/g, "?b"), 
+						removedOntology: diffs.filter(function(cs){return cs.removed}).map(function(cs){return cs.value}).join("\n").replace(/_:b/g, "?b"),
 						addedOntology: diffs.filter(function(cs){return cs.added}).map(function(cs){return cs.value}).join("\n")
 					});
 					console.log("Ontology has been pushed to DB!", res)
@@ -307,7 +307,7 @@ Application$.init = co(function *(rootPackageId){
 	ldp(this);
 
 	var packages = this.packages = yield jsonld.frame(
-		ddd = yield this.db.query("describe ?s {?s a sema:Package . hint:Query hint:describeMode \"CBD\"}")
+		yield this.db.query("describe ?s {?s a sema:Package . hint:Query hint:describeMode \"CBD\"}")
 		,{
 			"@context":
 			{
@@ -336,6 +336,7 @@ Application$.init = co(function *(rootPackageId){
 		"hasSubResource": {"@type": "Package", "@embed": true}
 		}
 	);
+
 
 	var rootPackage = this.rootPackage = this.getPackage(rootPackageId);
 
