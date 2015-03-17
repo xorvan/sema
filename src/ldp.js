@@ -56,7 +56,7 @@ var ldp = module.exports = function(app){
 			if(dbr && dbr.length === 0 ){
 				this.status = 404;
 			}
-			
+
 			this.link = this.response.header.link = ["<http://www.w3.org/ns/ldp#Resource>; rel='type'"];
 
 			yield next;
@@ -169,6 +169,7 @@ var ldp = module.exports = function(app){
 
 	app.type("ldp:NonRDFSource")
 		.get(function *(next){
+			this.status = 200;
 			yield send(this, this.path, { root: app.env.nonRDFSourceRoot } );
 		})
 	;
@@ -218,7 +219,8 @@ var ldp = module.exports = function(app){
 					hasMemberRelation: hasMemberRelation.iri(),
  					filter: "",
  					template: "?s ?p ?o",
- 					pattern: "?s ?p ?o"
+ 					pattern: "?s ?p ?o",
+					order: ""
 				};
 
 				var qs;
@@ -228,8 +230,8 @@ var ldp = module.exports = function(app){
 				}else{
 					this.sparql.query += "?membershipResource ?hasMemberRelation ?s ."
 				}
-				
-				this.sparql.query += " ?filter } limit ?limit offset ?offset} ?pattern}";
+
+				this.sparql.query += " ?filter } ?order limit ?limit offset ?offset} ?pattern} ";
 
 				this.body["ldp:membershipResource"] = membershipResource;
 				if(package.isMemberOfRelation){
@@ -336,7 +338,7 @@ var ldp = module.exports = function(app){
 					var ct = res["@type"] instanceof Array ? res["@type"] : [res["@type"]]
 					res["@type"] = ct.concat(types);
 				}
-				
+
 				if(this.is('application/json') && !res["@context"]){
 					res["@context"] = app.getFrame(res["@type"])["@context"];
 					res["@context"]["@base"] = app.ns.resolve(this.path)
@@ -384,7 +386,7 @@ var ldp = module.exports = function(app){
 				"ldp:insertedContentRelation": {"@type": "@id"},
 				"$members": {"@id": "ldp:contains", "@container": "@set"}
 			},
-			"$members": {"@embed": true}
+			"$members": {"@embed": "@always"}
 		})
 
 	;

@@ -307,7 +307,7 @@ Application$.init = co(function *(rootPackageId){
 	ldp(this);
 
 	var packages = this.packages = yield jsonld.frame(
-		yield this.db.query("describe ?s {?s a sema:Package . hint:Query hint:describeMode \"CBD\"}")
+		yield this.db.query("describe ?s {?s a sema:Package}")
 		,{
 			"@context":
 			{
