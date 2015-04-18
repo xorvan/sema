@@ -59,6 +59,8 @@ var ldp = module.exports = function(app){
 
 			this.link = this.response.header.link = ["<http://www.w3.org/ns/ldp#Resource>; rel='type'"];
 
+			this.formaters = {};
+
 			yield next;
 
 			if(this.isRDFSource){
@@ -69,7 +71,7 @@ var ldp = module.exports = function(app){
 
 				var accepted;
 				debug("Checking Accept Type")
-				switch(accepted = this.accepts(["application/ld+json", "text/plain", "application/nquads", "text/n3", "text/turtle", "application/json"])){
+				switch(accepted = this.forcedMimeType || this.accepts(["application/ld+json", "text/plain", "application/nquads", "text/n3", "text/turtle", "application/json"]) || this.accepts(Object.keys(this.formaters))){
 					case "application/ld+json":
 						this.set("Content-Type", "application/ld+json");
 						break
@@ -82,11 +84,19 @@ var ldp = module.exports = function(app){
 						this.body = yield jsonld.toRDF(this.body, {format: 'application/nquads'})
 						break
 					case "application/json":
-					default:
 						this.set("Content-Type", "application/json");
 						delete this.body["@context"];
 						this.link.push('<?context>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"');
-
+					default:
+						var formater;
+						console.log("formater", accepted, this.formaters)
+						if(formater = this.formaters[accepted]){
+							this.body = yield formater(this.body);
+							this.set("Content-Type", accepted);
+							console.log("csv", this.body, formater)
+						}else{
+							this.set("Content-Type", "application/ld+json");
+						}
 				}
 
 			}
