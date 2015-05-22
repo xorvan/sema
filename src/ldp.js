@@ -189,6 +189,8 @@ var ldp = module.exports = function(app){
 			if(!this.query.page){
 				var query = this.query;
 				query.page = 1;
+				if(this.request.header.authorization)
+					query.authtoken = this.request.header.authorization.replace("Bearer ", "")
 				this.set("Location", "?"+ querystring.stringify(query));
 				this.status = 303;
 			}else{
