@@ -319,7 +319,7 @@ var ldp = module.exports = function(app){
 
 			// Removing spaces and colons from slug
 			if(slug){
-				slug = slug.replace(/( |:)/g, "_");
+				slug = uuid.v4() + "-" + slug.replace(/( |:)/g, "_");
 			}
 
 			debug("New post on Container, Expected type:", types);
